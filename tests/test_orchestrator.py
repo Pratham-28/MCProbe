@@ -179,3 +179,31 @@ async def test_llm_off_mode_runs_static_and_deterministic_probe(tmp_path: Path):
     cats = {f.category for f in report.findings}
     assert {"response_injection", "secret_leak", "tool_poisoning"} <= cats  # rug pull still detected
     assert report.llm_usage == {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
+
+
+def test_store_attaches_references_to_old_reports_on_read(tmp_path: Path):
+    from app.models import Finding
+    s = Store(tmp_path)
+    r = Report(url="u", finished_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc))
+    r.findings = [Finding(category="secret_leak", severity="high", title="t", detail="d", location="response:x", phase="probe", source="prober")]
+    s.save(r)  # saved without references, like reports from before the mapping existed
+    assert s.load(r.audit_id).findings[0].references
+    assert s.latest_for_url("u").findings[0].references
+
+
+async def test_persisted_report_has_report_phase_completed(tmp_path: Path):
+    llm = FakeLLM([judge_ok(["add", "get_time"]), FakeReply(tool_calls=[tc("finish", {"summary": "a"})])])
+    store = Store(tmp_path)
+    report = await run_audit(AuditRun(Report(url=CLEAN_URL)), bearer_token=None, llm=llm, connector=CONNECTOR, store=store)
+    saved = store.load(report.audit_id)
+    assert saved.phase("report").status == "completed"
+    assert saved.phase("report").detail.startswith("Grade A")
+
+
+def test_store_marks_report_phase_completed_for_finished_legacy_reports(tmp_path: Path):
+    import datetime as dt
+    s = Store(tmp_path)
+    r = Report(url="u", finished_at=dt.datetime.now(dt.timezone.utc))
+    r.phase("report").status = "running"  # how reports were saved before the ordering fix
+    s.save(r)
+    assert s.load(r.audit_id).phase("report").status == "completed"

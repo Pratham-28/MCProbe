@@ -1,7 +1,7 @@
 import json
 
 from app.mcp_client import open_inproc
-from app.models import Inventory, ToolInfo
+from app.models import Finding, Inventory, ToolInfo
 from app.prober import MAX_CALLS, check_response, is_blocked, run_probe
 from fixtures.clean_server import server as clean
 from fixtures.evil_server import server as evil
@@ -155,3 +155,18 @@ async def test_deterministic_probe_against_evil_fixture():
     assert all(c.ok for c in calls)
     assert {"response_injection", "secret_leak", "tool_poisoning"} <= {f.category for f in findings}
     assert events.count("probe_call") == len(calls)
+
+
+def test_normalise_location_defaults_to_tool_kind_unless_response_is_mentioned():
+    from app.prober import _normalise_location
+    from app.scoring import dedupe
+    tools = {"exec_shell": ToolInfo(name="exec_shell"), "get_config": ToolInfo(name="get_config")}
+    a = Finding(category="excessive_permissions", severity="critical", title="exec_shell can run commands", detail="d",
+                location="exec_shell tool", phase="probe", source="prober")
+    b = Finding(category="secret_leak", severity="high", title="leak", detail="d",
+                location="output of get_config", phase="probe", source="prober")
+    _normalise_location(a, tools); _normalise_location(b, tools)
+    assert a.location == "tool:exec_shell" and b.location == "response:get_config"
+    static = Finding(category="excessive_permissions", severity="high", title="Tool 'exec_shell' exposes sensitive capability",
+                     detail="d", location="tool:exec_shell", phase="analyze", source="static")
+    assert len(dedupe([static, a])) == 1

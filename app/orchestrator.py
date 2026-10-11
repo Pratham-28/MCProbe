@@ -93,12 +93,12 @@ async def run_audit(run: AuditRun, *, bearer_token: str | None, llm, connector: 
                 report.score, report.grade = 0, "F"  # spec §12: a server we could not assess grades F
             report.llm_usage = _usage_delta(usage_before, getattr(llm, "usage", {}) or {})
             report.finished_at = now()
+            t.set("completed", f"Grade {report.grade}, score {report.score}, {len(report.findings)} findings")
             try:
-                store.save(report)
+                store.save(report)  # after the final phase is marked complete, so replays look finished
             except Exception as exc:
                 log.exception("audit %s could not be persisted", report.audit_id)
                 run.emit("error", {"message": f"Report not saved: {flatten_error(exc)}"})
-            t.set("completed", f"Grade {report.grade}, score {report.score}, {len(report.findings)} findings")
         finally:
             run.emit("done", report.model_dump(mode="json"))
             run.done = True

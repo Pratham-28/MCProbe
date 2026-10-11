@@ -129,7 +129,8 @@ def _normalise_location(fi: Finding, by_name: dict[str, ToolInfo]) -> None:
         return
     tool = _tool_named_in(fi.location + " " + fi.title, by_name)
     if tool:
-        kind = "tool" if "description" in fi.location.lower() else "response"
+        low = fi.location.lower()
+        kind = "response" if any(w in low for w in ("response", "output", "result", "returned")) else "tool"
         fi.location = f"{kind}:{tool}"
 
 

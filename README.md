@@ -8,6 +8,13 @@ pulls, and grades the server A–F. Built for neatHack 2026 (team SRP).
 
 ![Airlock verdict for the evil fixture](docs/ui-verdict.png)
 
+## What you get
+- A grade (A–F), a one-sentence verdict, and a findings table: Issue · Severity · Impact · Framework · Evidence.
+- Every finding mapped to **MITRE ATLAS**, **OWASP LLM Top 10 (2025)** and **MITRE ATT&CK** where applicable.
+- Download as JSON or CSV, copy a share link, print to PDF.
+- Replays: scanning a URL that already has a report shows it instantly; "Re-scan live" forces a fresh run.
+- `AIRLOCK_LLM=off` runs with no LLM at all: static checks plus a deterministic probe of gate-approved tools.
+
 ## Run
     cp .env.example .env   # fill LITELLM_API_KEY and NEATLOGS_API_KEY
     uv sync --group dev

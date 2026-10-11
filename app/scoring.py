@@ -1,4 +1,5 @@
 """Turn findings into a score and grade."""
+from app.frameworks import attach_references
 from app.models import Finding, Grade, Report
 
 WEIGHTS = {"critical": 30, "high": 15, "medium": 7, "low": 2, "info": 0}
@@ -64,6 +65,7 @@ def grade(value: int) -> Grade:
 
 def apply_scoring(report: Report) -> None:
     report.findings = dedupe(report.findings)
+    attach_references(report.findings)
     report.severity_counts = severity_counts(report.findings)
     report.score = score(report.findings)
     report.grade = grade(report.score)

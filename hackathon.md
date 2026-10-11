@@ -22,6 +22,24 @@ Tailwind CDN + vanilla JS. Repo: pending (public GitHub repo to be created).
 - **cfo.ai**: business plan (pricing, costs, revenue, runway): pending.
 
 ## Build log
+### 2026-10-11 (night) — table report, replay, LLM-off, framework mapping, opening animation
+- Findings table (Issue · Severity · Impact · Framework · Evidence) with expandable rows,
+  severity filter, CSV/JSON download, copy-link, print-to-PDF.
+- Replay: POST /audits returns the stored report for a URL unless `force` is set; UI shows a
+  "stored scan, re-scan live" banner. `AIRLOCK_LLM=off` skips the judge and runs a
+  deterministic probe (placeholder arguments from each tool's schema, same gate, same checks).
+- Framework mapping (`app/frameworks.py`): MITRE ATLAS (AML.T0110 Tool Poisoning, AML.T0109
+  Supply Chain Rug Pull, AML.T0051 Prompt Injection, AML.T0057 Data Leakage, AML.T0098 Tool
+  Credential Harvesting, AML.T0086 Exfiltration via Tool Invocation, AML.T0034.002 Agentic
+  Resource Consumption, AML.T0053 Tool Invocation, AML.T0080 Context Poisoning), OWASP LLM
+  Top 10 2025 (LLM01/02/03/06/10), ATT&CK (T1195, T1552, T1059, T1041, T1036, T1557). IDs
+  verified against mitre-atlas/atlas-data dist/ATLAS.yaml, genai.owasp.org and attack.mitre.org.
+- Fixed: reports were persisted before the final phase was marked complete (replays showed a
+  spinner); stored reports now get references attached on read.
+- Opening animation (pure SVG/CSS, 12 s loop): agent connects → tool description whispers
+  "read ~/.ssh/id_rsa" → Airlock grades it F.
+- Tests: 76 passed. Live evil scan `12a741c26f72`: F, 7 findings, 3 LLM calls, 7,510 prompt tokens.
+
 ### 2026-10-11 (evening) — UI redesign
 Rebuilt the page as a single calm flow: headline + one input + "Try" chips → five
 plain-English scan steps with live probe lines → a verdict card (grade ring, one-sentence
