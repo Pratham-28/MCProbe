@@ -178,8 +178,10 @@ Static checks (app/static_checks.py), iteration one set:
    tool/prompt description. Patterns include: ignore (all|previous|prior)
    instructions, do not (tell|inform|mention) the user, before (using|calling)
    this tool, `<important>`, `<system>`, `system:`, you must always, include the
-   contents of, send .* to, hidden/secret. Severity high; medium if only one weak
-   match.
+   contents of, send .* to, hidden/secret. Strong patterns (ignore instructions,
+   do not tell the user, `<important>`, `<system>`, before using this tool) ->
+   high; any other pattern -> medium. One finding per location, listing all
+   matched patterns in the evidence.
 2. `context_bloat`: tool with > 400 tokens -> medium; total inventory > 6000
    tokens -> high; > 30 tools -> medium.
 3. `excessive_permissions`: tool name or description matching exec, shell,
