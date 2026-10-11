@@ -1,0 +1,4 @@
+We will use our personal git account not pyeole284. Check that for anything in personal folder we will use the perosnal account.
+Tell me what you need to create a repo into this personal account.
+Should we mention whitepaper or soemthing else, update accordingly ?
+I wnat something which will trigger that should we allow LLM to sue or determsiitc check after websirte is live. If that is off detemistich check will work and on then both. How can we do this ?
