@@ -1,1 +1,225 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Airlock</title></head><body>Airlock</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airlock · MCP Security Assessment</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .sev-critical { background:#fee2e2; color:#991b1b; } .sev-high { background:#fee2e2; color:#b91c1c; }
+  .sev-medium { background:#ffedd5; color:#9a3412; } .sev-low { background:#dbeafe; color:#1e40af; }
+  .sev-info { background:#f1f5f9; color:#334155; }
+  .grade-A{background:#dcfce7;color:#166534} .grade-B{background:#ecfccb;color:#3f6212}
+  .grade-C{background:#fef9c3;color:#854d0e} .grade-D{background:#ffedd5;color:#9a3412} .grade-F{background:#fee2e2;color:#991b1b}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div class="flex min-h-screen">
+  <aside class="w-56 bg-slate-900 text-slate-200 flex flex-col">
+    <div class="px-5 py-5 border-b border-slate-800">
+      <div class="text-xl font-semibold text-white">Airlock</div>
+      <div class="text-xs text-slate-400">MCP Security Assessment</div>
+    </div>
+    <nav class="p-3 space-y-1 text-sm">
+      <a href="#/new" data-nav="new" class="block rounded px-3 py-2 hover:bg-slate-800">New Assessment</a>
+      <a href="#/list" data-nav="list" class="block rounded px-3 py-2 hover:bg-slate-800">Assessments</a>
+    </nav>
+    <div class="mt-auto p-4 text-xs text-slate-500">neatHack 2026 · team SRP</div>
+  </aside>
+
+  <main class="flex-1 p-8 max-w-7xl">
+    <section id="view-new">
+      <h1 class="text-2xl font-semibold">New MCP Assessment</h1>
+      <p class="text-slate-500 mb-5">Connect to an MCP server, discover its capabilities, analyze and probe it for security risks.</p>
+
+      <div class="bg-white rounded-xl shadow-sm p-5 flex flex-wrap gap-4 items-end">
+        <div class="flex-1 min-w-[280px]">
+          <label class="block text-sm font-medium mb-1">MCP Server</label>
+          <select id="target-select" class="w-full border rounded-lg px-3 py-2"></select>
+          <div id="target-desc" class="text-xs text-slate-500 mt-1"></div>
+        </div>
+        <div id="custom-wrap" class="hidden flex-1 min-w-[280px]">
+          <label class="block text-sm font-medium mb-1">URL</label>
+          <input id="custom-url" class="w-full border rounded-lg px-3 py-2 mono" placeholder="https://host/mcp">
+        </div>
+        <div class="min-w-[220px]">
+          <label class="block text-sm font-medium mb-1">Bearer token (optional)</label>
+          <input id="token" type="password" class="w-full border rounded-lg px-3 py-2" placeholder="never stored">
+        </div>
+        <button id="start" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-5 py-2.5">Start Assessment →</button>
+      </div>
+
+      <ol id="stepper" class="flex justify-between my-6 text-sm"></ol>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <div class="lg:col-span-3 bg-white rounded-xl shadow-sm p-5">
+          <h2 class="font-semibold mb-3">Assessment Progress</h2>
+          <ul id="timeline" class="space-y-3"></ul>
+        </div>
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-5" id="summary"></div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm mt-5">
+        <div class="flex items-center border-b px-4">
+          <nav id="tabs" class="flex gap-5 text-sm"></nav>
+          <div class="ml-auto py-2 flex gap-2">
+            <button id="download" class="text-sm border rounded-lg px-3 py-1.5 hover:bg-slate-50">Download JSON</button>
+            <a id="permalink" class="text-sm border rounded-lg px-3 py-1.5 hover:bg-slate-50" href="#">Permalink</a>
+          </div>
+        </div>
+        <div id="tab-body" class="p-4"></div>
+      </div>
+    </section>
+
+    <section id="view-list" class="hidden">
+      <h1 class="text-2xl font-semibold mb-5">Assessments</h1>
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr>
+          <th class="px-4 py-2">Grade</th><th class="px-4 py-2">Target</th><th class="px-4 py-2">Server</th><th class="px-4 py-2">Finished</th></tr></thead>
+          <tbody id="list-body"></tbody></table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const PHASES = [["connect","Connect"],["discover","Discover"],["analyze","Analyze"],["probe","Probe"],["report","Report"]];
+const SEVS = ["critical","high","medium","low","info"];
+let report = emptyReport(), tab = "findings", es = null, probeCalls = [], logs = {};
+
+function emptyReport(){ return {phases: PHASES.map(([p])=>({phase:p,status:"pending",detail:"",seconds:null})),
+  findings:[], probe_calls:[], inventory:null, score:0, grade:null, severity_counts:{}, url:"", audit_id:null}; }
+const $ = (s)=>document.querySelector(s);
+const esc = (s)=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function loadTargets(){
+  const t = await (await fetch("/targets")).json();
+  const sel = $("#target-select");
+  sel.innerHTML = t.map(x=>`<option value="${esc(x.url)}" data-desc="${esc(x.description)}">${esc(x.label)}</option>`).join("")
+    + `<option value="__custom">Custom URL…</option>`;
+  sel.onchange = ()=>{ $("#custom-wrap").classList.toggle("hidden", sel.value!=="__custom");
+    $("#target-desc").textContent = sel.selectedOptions[0].dataset.desc || ""; };
+  sel.onchange();
+}
+
+async function start(){
+  const sel = $("#target-select");
+  const url = sel.value==="__custom" ? $("#custom-url").value.trim() : sel.value;
+  const label = sel.value==="__custom" ? null : sel.selectedOptions[0].textContent;
+  const body = {url, label}; const tok = $("#token").value.trim(); if (tok) body.bearer_token = tok;
+  const r = await fetch("/audits",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok){ alert("Could not start: "+(await r.text())); return; }
+  const {audit_id} = await r.json();
+  location.hash = "#/audits/"+audit_id;
+}
+
+function watch(id){
+  if(es) es.close();
+  report = emptyReport(); report.audit_id = id; probeCalls=[]; logs={}; render();
+  es = new EventSource(`/audits/${id}/events`);
+  es.addEventListener("phase", e=>{ const p=JSON.parse(e.data); Object.assign(report.phases.find(x=>x.phase===p.phase), p); render(); });
+  es.addEventListener("log", e=>{ const l=JSON.parse(e.data); (logs[l.phase] ||= []).push(l.message); render(); });
+  es.addEventListener("probe_call", e=>{ probeCalls.push(JSON.parse(e.data)); render(); });
+  es.addEventListener("finding", e=>{ report.findings.push(JSON.parse(e.data)); render(); });
+  es.addEventListener("done", e=>{ report = JSON.parse(e.data); probeCalls = report.probe_calls; es.close(); render(); });
+  es.addEventListener("error", e=>{ if(e.data){ (logs.report ||= []).push("Error: "+JSON.parse(e.data).message); render(); } });
+}
+
+function statusBadge(s){
+  const m={completed:["✔ Completed","text-emerald-600"],running:["● In progress","text-indigo-600"],failed:["✖ Failed","text-red-600"],
+    skipped:["– Skipped","text-slate-400"],pending:["○ Pending","text-slate-400"]}[s]||["",""];
+  return `<span class="${m[1]} text-sm">${m[0]}</span>`;
+}
+
+function render(){
+  $("#stepper").innerHTML = PHASES.map(([p,label],i)=>{ const st=report.phases.find(x=>x.phase===p).status;
+    const ring = st==="completed"?"bg-emerald-500 text-white":st==="running"?"bg-indigo-600 text-white":st==="failed"?"bg-red-500 text-white":"bg-white border text-slate-500";
+    return `<li class="flex items-center gap-2"><span class="w-7 h-7 rounded-full flex items-center justify-center text-xs ${ring}">${i+1}</span><span class="font-medium">${label}</span></li>`; }).join("");
+
+  $("#timeline").innerHTML = report.phases.map(p=>{
+    const extra = (logs[p.phase]||[]).map(m=>`<div class="text-xs text-slate-500">${esc(m)}</div>`).join("");
+    const calls = p.phase==="probe" ? probeCalls.map(c=>`<div class="text-xs mono mt-1 ${c.ok?"text-slate-600":"text-amber-700"}">
+        ${c.ok?"✔":"✖"} ${esc(c.tool)}(${esc(JSON.stringify(c.arguments)).slice(0,80)}) · ${c.response_tokens} tok · ${c.seconds}s ${c.note?"· "+esc(c.note):""}</div>`).join("") : "";
+    return `<li class="flex gap-3"><div class="w-2 mt-2 h-2 rounded-full ${p.status==="completed"?"bg-emerald-500":p.status==="running"?"bg-indigo-500":p.status==="failed"?"bg-red-500":"bg-slate-300"}"></div>
+      <div class="flex-1"><div class="flex justify-between"><span class="font-medium capitalize">${p.phase}</span>${statusBadge(p.status)}</div>
+      <div class="text-sm text-slate-500">${esc(p.detail)}</div>${extra}${calls}</div>
+      <div class="text-xs text-slate-400 w-12 text-right">${p.seconds!=null?p.seconds+"s":""}</div></li>`; }).join("");
+
+  const inv = report.inventory; const sc = report.severity_counts||{};
+  const dur = report.phases.reduce((a,p)=>a+(p.seconds||0),0).toFixed(1);
+  $("#summary").innerHTML = `
+    <div class="flex items-start justify-between"><h2 class="font-semibold">Assessment Summary</h2>
+      ${report.grade?`<div class="grade-${report.grade} rounded-lg px-3 py-1 font-bold text-lg">${report.grade} <span class="text-sm font-medium">${report.score}/100</span></div>`:""}</div>
+    <div class="mt-3 text-sm"><div class="font-medium">${esc(report.target_label||"")}</div><div class="mono text-xs text-slate-500 break-all">${esc(report.url||"")}</div></div>
+    <dl class="grid grid-cols-2 gap-2 mt-4 text-sm">
+      <dt class="text-slate-500">Server</dt><dd>${esc(inv?.server_name||"–")} ${esc(inv?.server_version||"")}</dd>
+      <dt class="text-slate-500">Transport</dt><dd>${esc(inv?.transport||"–")}</dd>
+      <dt class="text-slate-500">Authentication</dt><dd>${inv?(inv.authenticated?"Bearer":"None"):"–"}</dd>
+      <dt class="text-slate-500">Protocol</dt><dd>${esc(inv?.protocol_version||"–")}</dd>
+      <dt class="text-slate-500">Duration</dt><dd>${dur}s</dd></dl>
+    <h3 class="font-medium mt-4 mb-2">Capabilities Discovered</h3>
+    <div class="grid grid-cols-4 gap-2 text-center text-sm">
+      ${[["Tools",inv?.tools?.length],["Resources",inv?.resources?.length],["Prompts",inv?.prompts?.length],["Tokens",inv?.total_tokens]]
+        .map(([k,v])=>`<div class="bg-slate-50 rounded-lg p-2"><div class="text-lg font-semibold">${v??"–"}</div><div class="text-xs text-slate-500">${k}</div></div>`).join("")}</div>
+    <h3 class="font-medium mt-4 mb-2">Security Findings</h3>
+    <div class="grid grid-cols-5 gap-2 text-center text-sm">
+      ${SEVS.map(s=>`<div class="sev-${s} rounded-lg p-2"><div class="text-lg font-semibold">${sc[s]??report.findings.filter(f=>f.severity===s).length}</div><div class="text-xs capitalize">${s}</div></div>`).join("")}</div>`;
+
+  const tabs = [["findings",`Findings (${report.findings.length})`],["tools",`Tools (${inv?.tools?.length??0})`],["resources",`Resources (${inv?.resources?.length??0})`],
+    ["prompts",`Prompts (${inv?.prompts?.length??0})`],["probe",`Probe Log (${probeCalls.length})`],["raw","Raw JSON"]];
+  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" class="py-3 border-b-2 ${tab===k?"border-indigo-600 text-indigo-700":"border-transparent text-slate-500"}">${l}</button>`).join("");
+  $("#tabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();});
+  $("#tab-body").innerHTML = renderTab();
+  $("#permalink").href = report.audit_id?`#/audits/${report.audit_id}`:"#";
+}
+
+function renderTab(){
+  const inv = report.inventory;
+  if(tab==="findings"){
+    const order = Object.fromEntries(SEVS.map((s,i)=>[s,i]));
+    const fs = [...report.findings].sort((a,b)=>order[a.severity]-order[b.severity]);
+    if(!fs.length) return `<div class="text-slate-500 text-sm">No findings yet.</div>`;
+    return fs.map(f=>`<div class="border rounded-lg p-4 mb-3">
+      <div class="flex items-center gap-3"><span class="sev-${f.severity} text-xs font-semibold uppercase rounded px-2 py-0.5">${f.severity}</span>
+        <div class="font-medium">${esc(f.title)}</div>
+        <div class="ml-auto flex gap-2 text-xs"><span class="bg-violet-100 text-violet-800 rounded px-2 py-0.5">${esc(f.category)}</span>
+          <span class="bg-slate-100 rounded px-2 py-0.5 mono">${esc(f.location)}</span><span class="bg-slate-100 rounded px-2 py-0.5">${esc(f.source)}</span></div></div>
+      <div class="text-sm text-slate-600 mt-1">${esc(f.detail)}</div>
+      <div class="grid md:grid-cols-2 gap-3 mt-3 text-sm">
+        <details open class="bg-slate-50 rounded p-3"><summary class="cursor-pointer font-medium">Evidence</summary><pre class="mono text-xs text-red-700 whitespace-pre-wrap mt-2">${esc(f.evidence)}</pre></details>
+        <details open class="bg-slate-50 rounded p-3"><summary class="cursor-pointer font-medium">Recommendation</summary><div class="mt-2">${esc(f.recommendation)}</div></details></div></div>`).join("");
+  }
+  if(tab==="tools") return !inv ? "" : `<table class="w-full text-sm"><thead class="text-left text-slate-500"><tr><th class="py-1">Name</th><th>Tokens</th><th>Annotations</th><th>Description</th></tr></thead><tbody>`
+    + inv.tools.map(t=>`<tr class="border-t align-top"><td class="py-2 mono">${esc(t.name)}</td><td>${t.tokens}</td><td class="text-xs mono">${esc(JSON.stringify(t.annotations))}</td><td class="text-slate-600">${esc((t.description||"").slice(0,300))}</td></tr>`).join("")+`</tbody></table>`;
+  if(tab==="resources") return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(inv?.resources??[],null,2))}</pre>`;
+  if(tab==="prompts") return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(inv?.prompts??[],null,2))}</pre>`;
+  if(tab==="probe") return probeCalls.length ? probeCalls.map(c=>`<div class="border rounded-lg p-3 mb-2 text-sm"><div class="mono">${c.ok?"✔":"✖"} ${esc(c.tool)} ${esc(JSON.stringify(c.arguments))}</div>
+      <div class="text-xs text-slate-500">${c.response_tokens} tokens · ${c.seconds}s ${c.note?"· "+esc(c.note):""}</div><pre class="mono text-xs whitespace-pre-wrap mt-1 text-slate-600">${esc(c.response_excerpt)}</pre></div>`).join("") : `<div class="text-slate-500 text-sm">No tool calls yet.</div>`;
+  return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(report,null,2))}</pre>`;
+}
+
+async function showList(){
+  const rows = await (await fetch("/audits")).json();
+  $("#list-body").innerHTML = rows.map(r=>`<tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="location.hash='#/audits/${r.audit_id}'">
+    <td class="px-4 py-2"><span class="grade-${r.grade} rounded px-2 py-0.5 font-semibold">${r.grade}</span> ${r.score}</td>
+    <td class="px-4 py-2"><div>${esc(r.target_label||"")}</div><div class="mono text-xs text-slate-500">${esc(r.url)}</div></td>
+    <td class="px-4 py-2">${esc(r.server_name||"")}</td><td class="px-4 py-2 text-slate-500">${esc((r.finished_at||"").replace("T"," ").slice(0,19))}</td></tr>`).join("")
+    || `<tr><td class="px-4 py-3 text-slate-500" colspan="4">No assessments yet.</td></tr>`;
+}
+
+function route(){
+  const h = location.hash || "#/new";
+  const isList = h.startsWith("#/list");
+  $("#view-new").classList.toggle("hidden", isList); $("#view-list").classList.toggle("hidden", !isList);
+  document.querySelectorAll("[data-nav]").forEach(a=>a.classList.toggle("bg-indigo-600", a.dataset.nav===(isList?"list":"new")));
+  if(isList) showList();
+  const m = h.match(/^#\/audits\/([a-z0-9]+)/); if(m && m[1]!==report.audit_id) watch(m[1]);
+}
+$("#start").onclick = start;
+$("#download").onclick = ()=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:"application/json"})); a.download=`airlock-${report.audit_id||"report"}.json`; a.click(); };
+window.addEventListener("hashchange", route);
+loadTargets().then(()=>{ render(); route(); });
+</script>
+</body>
+</html>
