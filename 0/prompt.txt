@@ -1,0 +1,2 @@
+what is github, prrof tab doing ?
+We can remvoe that and add Manifesto or detaild doc related how the tool woeks wat is the plan of the tool in detail Wehter impelmented or not. Kidn of whitepapet for our tool.
