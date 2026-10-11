@@ -17,8 +17,11 @@ Tailwind CDN + vanilla JS. Repo: https://github.com/Pratham-28/MCProbe · Live: 
 - **neatlogs**: `neatlogs.wrap(AsyncOpenAI())` traces every judge and prober LLM call;
   `neatlogs.identify(session_id=<audit_id>)` groups one audit into one session so a
   trace can be compared run-to-run. Trace links: pending (needs `NEATLOGS_API_KEY`).
-- **Entire**: to be enabled on the repo with `entire enable --agent claude-code`;
-  checkpoint link + ID: pending.
+- **Entire**: enabled on the repo (`entire enable --agent claude-code`) from the first implementation
+  commit; every commit carries an `Entire-Checkpoint` trailer and the session refs are pushed to GitHub.
+  Dashboard: https://entire.io/gh/Pratham-28/MCProbe (15 checkpoints, 33 commits, 61 agent messages).
+  Checkpoint link: https://entire.io/gh/Pratham-28/MCProbe/commit/a5d06cf2fb2badc9dc1063637a8b51329d0270bd
+  · ID `01M4NARNZSJWX446H9KT8GDXZY`.
 - **cfo.ai**: business plan (pricing, costs, revenue, runway): pending.
 
 ## Build log
@@ -108,4 +111,4 @@ batching, prompt/resource content retrieval, deeper schema analysis, OAuth, stdi
 servers and skill folders, report sharing, EC2 deployment, threshold tuning.
 
 ## Submission
-Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ · Demo video: pending · Checkpoint: pending · Business plan: pending
+Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ · Demo video: pending · Checkpoint: https://entire.io/gh/Pratham-28/MCProbe/commit/a5d06cf2fb2badc9dc1063637a8b51329d0270bd (ID 01M4NARNZSJWX446H9KT8GDXZY) · Business plan: pending
