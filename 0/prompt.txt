@@ -1,0 +1,63 @@
+what about env variable how are we going to handel those
+
+---
+
+shoule we go with the the variable approach for this secrets ?
+
+---
+
+for repor creation tell me the stesp
+
+---
+
+can you suggest me some name which are incling  to our project ? airlock is not inclined
+
+---
+
+MCProbe
+https://github.com/Pratham-28/MCProbe.git
+
+We want to do the all with my perosnal account.
+
+---
+
+wiat lets first sort out the issue of git one by one. Tell me what is the issue and explain me in detail before doing anything
+
+---
+
+pyeole284 is abstract account
+Pratham-28 is personal account
+
+---
+
+first lets cleanup that wrong mapping.
+
+---
+
+done
+
+---
+
+lets do one by one
+
+---
+
+lets do the quick commit to this repo and thirugh the branch to see whether it is working correctly or not
+
+---
+
+what is entire checkpoint ?
+Dont add the claude anywhere as contirubutor ?
+when entire is get confitured and on which account it gets confictured
+
+---
+
+We want to implement entre only for this repo not for all repo. Will it be pssoble
+
+---
+
+rewrtie all 29 commit messages and force push and tell me how can we deply this on vercel and share this with other team members
+
+---
+
+Lets rename
