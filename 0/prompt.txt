@@ -1,1 +1,0 @@
-I want that AI on off not in the UI from backend, cant we do this from git hub variable feature falg thing.
