@@ -1,0 +1,11 @@
+how I cna access torugh UI
+
+---
+
+what modle we are using for lttlemm and what are we tracing in neatlogs
+
+---
+
+Litellm-> sk-Ljwxo2pQ5QXGXvddmLKmoA
+Neat lgos -> vx6hlsFAGfECgBcAGsxgUwWVIrh8t_Bt
+Swithc to chepaer model
