@@ -35,8 +35,15 @@ TCP 80 (and 22 for you). Then on the instance:
     sudo systemctl restart airlock
 
 Open `http://<public-ip>/`. Logs: `journalctl -u airlock -f`. The fixture servers run as a
-second unit, `airlock-fixtures`. For a public demo keep `AIRLOCK_LLM=off` or rely on replay
-so strangers can't spend the shared LLM budget; set `AIRLOCK_LLM=on` only while presenting.
+second unit, `airlock-fixtures`.
+
+### Switching AI analysis on and off while live
+Deterministic checks always run. The LLM judge and the probing agent are controlled by the
+"Analysis" toggle in the top bar, which calls `POST /settings` and persists to
+`data/audits/settings.json` (survives restarts). Set `AIRLOCK_ADMIN_TOKEN=<secret>` in `.env`
+so only you can flip it on a public instance; the page asks for the token once. `AIRLOCK_LLM=off`
+only sets the initial default. Keep AI off for the public link and turn it on while presenting,
+so strangers cannot spend the shared LLM budget.
 
 ## Test
     uv run pytest -q

@@ -51,6 +51,9 @@
     <div class="ml-auto flex items-center gap-6 text-sm text-slate-600">
       <a href="#how" class="hover:text-slate-900">How it works</a>
       <a href="/whitepaper" class="hover:text-slate-900 font-medium text-indigo-700">Whitepaper</a>
+      <button id="llm-toggle" type="button" title="Analysis mode. Deterministic checks always run; AI adds the LLM judge and the probing agent." class="chip !py-1 flex items-center gap-2">
+        <span id="llm-dot" class="w-2 h-2 rounded-full bg-slate-300"></span><span id="llm-label">Analysis: …</span>
+      </button>
     </div>
   </div>
 </nav>
@@ -175,8 +178,32 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const human = f => (/rug pull/i.test(f.title) ? RUG : (HUMAN[f.category] || {label:f.category, why:f.detail, fragment:"has issues"}));
 const bucket = f => (f.severity === "critical" || f.severity === "high") ? "serious" : f.severity === "medium" ? "note" : "minor";
 
+let settings = { llm_enabled: true, admin_required: false };
+async function loadSettings() {
+  try { settings = await (await fetch("/settings")).json(); } catch {}
+  const on = settings.llm_enabled;
+  $("#llm-label").textContent = on ? "Analysis: Deterministic + AI" : "Analysis: Deterministic only";
+  $("#llm-dot").className = "w-2 h-2 rounded-full " + (on ? "bg-emerald-500" : "bg-slate-400");
+}
+async function toggleLlm() {
+  const next = !settings.llm_enabled;
+  const headers = { "content-type": "application/json" };
+  if (settings.admin_required) {
+    const tok = sessionStorage.getItem("airlock_admin") || prompt("Admin token to change analysis mode:");
+    if (!tok) return;
+    headers["X-Admin-Token"] = tok;
+  }
+  const r = await fetch("/settings", { method: "POST", headers, body: JSON.stringify({ llm_enabled: next }) });
+  if (r.status === 401) { sessionStorage.removeItem("airlock_admin"); toast("Wrong admin token"); return; }
+  if (settings.admin_required && r.ok) sessionStorage.setItem("airlock_admin", headers["X-Admin-Token"]);
+  await loadSettings();
+  toast(next ? "AI analysis on: judge + probing agent will run on new scans" : "AI analysis off: deterministic checks and probe only");
+}
+
 async function init() {
   if (new URLSearchParams(location.search).get("story") === "1") document.querySelector(".story").classList.remove("hidden");
+  $("#llm-toggle").onclick = toggleLlm;
+  loadSettings();
   targets = await (await fetch("/targets")).json();
   const order = ["fixture-evil", "fixture-clean", "deepwiki", "huggingface", "context7"];
   $("#chips").innerHTML = order.map(id => targets.find(t => t.id === id)).filter(Boolean)

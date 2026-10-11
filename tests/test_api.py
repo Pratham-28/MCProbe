@@ -36,7 +36,7 @@ async def test_index_and_targets(client):
     c, _ = client
     r = await c.get("/"); assert r.status_code == 200 and "Airlock" in r.text
     assert 'id="url-input"' in r.text and "EventSource" in r.text and "Technical details" in r.text
-    assert 'id="findings-table"' in r.text and "dl-csv" in r.text and 'class="story' in r.text
+    assert 'id="findings-table"' in r.text and "dl-csv" in r.text and 'class="story' in r.text and 'id="llm-toggle"' in r.text
     r = await c.get("/targets"); assert r.status_code == 200 and r.json()[0]["id"] == "fixture-clean"
 
 
@@ -111,3 +111,40 @@ async def test_whitepaper_page(client):
     assert r.status_code == 200 and "Whitepaper" in r.text and "Implemented" in r.text
     home = (await c.get("/")).text
     assert 'href="/whitepaper"' in home and 'href="#proof"' not in home and "GitHub" not in home
+
+
+async def test_settings_toggle_llm_mode(tmp_path, monkeypatch):
+    monkeypatch.delenv("AIRLOCK_LLM", raising=False)
+    monkeypatch.setenv("AIRLOCK_ADMIN_TOKEN", "s3cret")
+    llm = FakeLLM([judge_ok(), FakeReply(tool_calls=[tc("finish", {"summary": "ok"})])])
+    app = create_app(llm=llm, connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path))
+    c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+    r = await c.get("/settings")
+    assert r.json() == {"llm_enabled": True, "admin_required": True}
+    # wrong / missing token is rejected
+    assert (await c.post("/settings", json={"llm_enabled": False})).status_code == 401
+    assert (await c.post("/settings", json={"llm_enabled": False}, headers={"X-Admin-Token": "nope"})).status_code == 401
+    # correct token flips the mode, persisted to disk
+    r = await c.post("/settings", json={"llm_enabled": False}, headers={"X-Admin-Token": "s3cret"})
+    assert r.status_code == 200 and r.json()["llm_enabled"] is False
+    assert (tmp_path / "settings.json").exists()
+    # a scan now runs without the LLM
+    audit_id = (await c.post("/audits", json={"url": CLEAN_URL, "force": True})).json()["audit_id"]
+    await wait_done(app, audit_id)
+    assert (await c.get(f"/audits/{audit_id}")).json()["model"] == "none (LLM disabled)"
+    assert llm.usage["calls"] == 0
+    # back on
+    await c.post("/settings", json={"llm_enabled": True}, headers={"X-Admin-Token": "s3cret"})
+    audit_id = (await c.post("/audits", json={"url": CLEAN_URL, "force": True})).json()["audit_id"]
+    await wait_done(app, audit_id)
+    assert (await c.get(f"/audits/{audit_id}")).json()["model"] == "fake-model"
+
+
+async def test_settings_without_admin_token_is_open_and_env_sets_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIRLOCK_LLM", "off")
+    monkeypatch.delenv("AIRLOCK_ADMIN_TOKEN", raising=False)
+    app = create_app(connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path))
+    c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+    assert (await c.get("/settings")).json() == {"llm_enabled": False, "admin_required": False}
+    assert (await c.post("/settings", json={"llm_enabled": True})).status_code == 200
+    assert (await c.get("/settings")).json()["llm_enabled"] is True
