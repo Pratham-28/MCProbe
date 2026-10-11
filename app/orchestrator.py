@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import AsyncIterator
 
@@ -124,12 +125,25 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
         conn = await cm.__aenter__()
     except Exception as exc:
         msg = str(exc) if isinstance(exc, ConnectionFailed) else flatten_error(exc)
-        connect.set("failed", msg[:300])
         _skip_rest(run, ("discover", "analyze", "probe"))
-        _add(run, [Finding(category="connectivity", severity="critical", title="Could not connect to the MCP server",
-                           detail=msg[:1000], location="server.url", evidence=report.url,
-                           recommendation="Check the URL, transport (Streamable HTTP or SSE), and any required token.",
-                           phase="connect", source="static")])
+        if re.search(r"\b40[13]\b|Unauthorized|Forbidden", msg):
+            connect.set("failed", "Authentication required: the server answered 401/403 to an anonymous client")
+            _add(run, [Finding(
+                category="connectivity", severity="critical", title="This server requires authentication",
+                detail="The server refused an anonymous connection, so its tools could not be read or tested. "
+                       "If it accepts an API key, add it with the token field and scan again. If it only "
+                       "supports an OAuth login (Notion, GitHub and most SaaS servers do), MCProbe cannot "
+                       "assess it yet; OAuth support is on the roadmap.",
+                location="server.url", evidence=msg[:500],
+                recommendation="Supply a bearer token, or wait for OAuth support. A server you cannot read is "
+                               "a server you cannot vet, so treat it as unverified.",
+                phase="connect", source="static")])
+        else:
+            connect.set("failed", msg[:300])
+            _add(run, [Finding(category="connectivity", severity="critical", title="Could not connect to the MCP server",
+                               detail=msg[:1000], location="server.url", evidence=report.url,
+                               recommendation="Check the URL, transport (Streamable HTTP or SSE), and any required token.",
+                               phase="connect", source="static")])
         return
     try:
         connect.set("completed", f"Connected via {conn.transport}")

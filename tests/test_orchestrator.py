@@ -207,3 +207,23 @@ def test_store_marks_report_phase_completed_for_finished_legacy_reports(tmp_path
     r.phase("report").status = "running"  # how reports were saved before the ordering fix
     s.save(r)
     assert s.load(r.audit_id).phase("report").status == "completed"
+
+
+async def test_auth_required_server_gets_a_plain_language_finding(tmp_path: Path):
+    from contextlib import asynccontextmanager
+    from app.mcp_client import ConnectionFailed
+
+    @asynccontextmanager
+    async def connector(url, token):
+        raise ConnectionFailed("Could not establish an MCP session. streamable_http: MCPError: Server returned an error "
+                               "response | sse: HTTPStatusError: Client error '401 Unauthorized' for url 'https://mcp.notion.com/mcp'")
+        yield  # pragma: no cover
+
+    report = await run_audit(AuditRun(Report(url="https://mcp.notion.com/mcp")), bearer_token=None, llm=FakeLLM(),
+                             connector=connector, store=Store(tmp_path))
+    f = report.findings[0]
+    assert f.category == "connectivity" and f.severity == "critical"
+    assert f.title == "This server requires authentication"
+    assert "log in" in f.detail.lower() or "token" in f.detail.lower()
+    assert "401" in f.evidence
+    assert report.phase("connect").detail.startswith("Authentication required")
