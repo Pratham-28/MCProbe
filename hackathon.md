@@ -11,7 +11,7 @@ SRP — Prathamesh Yeole (lead); teammates: pending
 ## Stack
 Python 3.13 + uv, FastAPI + sse-starlette, `mcp` 2.3 client (Streamable HTTP with SSE
 fallback), LiteLLM endpoint (`claude-sonnet-4.6` by default), neatlogs SDK, tiktoken,
-Tailwind CDN + vanilla JS. Repo: pending (public GitHub repo to be created).
+Tailwind CDN + vanilla JS. Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ (AWS EC2 t3.small, us-east-1)
 
 ## How neatlogs, Entire, cfo.ai are used
 - **neatlogs**: `neatlogs.wrap(AsyncOpenAI())` traces every judge and prober LLM call;
@@ -51,6 +51,7 @@ accordion. Added How-it-works and a Proof grid of real recent scans. Tests: 63 p
 Planned: design spec, implementation plan, then iteration one: scaffold, scoring,
 static checks, fixture servers, MCP client, LLM client + test fake, judge, prober,
 orchestrator + store, API + SSE, UI, hackathon wiring.
+Deployed 2026-10-11 evening to AWS EC2 (`deploy/setup_ec2.sh`); first external scan `615e6fc99cca`: evil fixture F, 8 findings, claude-haiku.
 Done: all code tasks (1–11). Spec: `docs/superpowers/specs/2026-10-11-mcprobe-mcp-audit-design.md`.
 Plan: `docs/superpowers/plans/2026-10-11-mcprobe-iteration-one.md`.
 Tests that ran: `uv run pytest -q` → 53 passed.
@@ -107,4 +108,4 @@ batching, prompt/resource content retrieval, deeper schema analysis, OAuth, stdi
 servers and skill folders, report sharing, EC2 deployment, threshold tuning.
 
 ## Submission
-Repo: pending · Demo video: pending · Checkpoint: pending · Business plan: pending
+Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ · Demo video: pending · Checkpoint: pending · Business plan: pending
