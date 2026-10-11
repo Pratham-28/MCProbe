@@ -1,0 +1,34 @@
+if we want to deploy this on verel then what changes we will required or vercel does not support such applciaiton
+
+---
+
+lets go with AWS only. Push the changes
+
+---
+
+can we make the singel branch ito our repo that is main and our code is there.
+
+---
+
+done
+
+---
+
+tell me step by step thing for AWS
+
+---
+
+will this work
+
+---
+
+ssh -i mcprobe-key1.pem ubuntu@https://54.197.141.241/
+What is wrong here
+
+---
+
+next
+
+---
+
+For notion
