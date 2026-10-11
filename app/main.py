@@ -2,19 +2,18 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
+import os
 from pathlib import Path
 
-import os
-
-import json as _json
-
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
 
+from app.flags import GitHubVariableFlag, parse_on_off
 from app.mcp_client import Connector, open_connection
 from app.models import Report
 from app.orchestrator import AuditRun, run_audit
@@ -40,37 +39,41 @@ class AuditRequest(BaseModel):
         return v
 
 
-class SettingsUpdate(BaseModel):
-    llm_enabled: bool
+def _flag_from_env() -> GitHubVariableFlag | None:
+    """GITHUB_REPO=owner/name + GITHUB_FLAG_TOKEN turn on polling of the AIRLOCK_LLM repository variable."""
+    repo, token = os.environ.get("GITHUB_REPO"), os.environ.get("GITHUB_FLAG_TOKEN")
+    if repo and token:
+        return GitHubVariableFlag(repo=repo, token=token, name=os.environ.get("GITHUB_FLAG_NAME", "AIRLOCK_LLM"),
+                                  interval=float(os.environ.get("GITHUB_FLAG_INTERVAL", "60")))
+    return None
 
 
-def _settings_path(store: Store) -> Path:
-    return store.dir / "settings.json"
+def create_app(*, llm=None, connector: Connector | None = None, store: Store | None = None,
+               flag: GitHubVariableFlag | None = None) -> FastAPI:
+    flag = flag or _flag_from_env()
 
-
-def _load_llm_enabled(store: Store) -> bool:
-    """Persisted toggle wins; otherwise the AIRLOCK_LLM env var; default on."""
-    p = _settings_path(store)
-    if p.exists():
+    @contextlib.asynccontextmanager
+    async def lifespan(app: FastAPI):
+        poller = asyncio.create_task(flag.run(apply_flag)) if flag else None
         try:
-            return bool(_json.loads(p.read_text()).get("llm_enabled", True))
-        except Exception:
-            pass
-    return os.environ.get("AIRLOCK_LLM", "on").lower() not in ("off", "0", "false", "none")
+            yield
+        finally:
+            if poller:
+                poller.cancel()
 
-
-def create_app(*, llm=None, connector: Connector | None = None, store: Store | None = None) -> FastAPI:
-    app = FastAPI(title="Airlock", version="0.1.0")
+    app = FastAPI(title="Airlock", version="0.1.0", lifespan=lifespan)
     app.state.runs = {}
     app.state.tasks = set()
     app.state.store = store or Store()
     app.state.connector = connector or open_connection
     app.state.llm = llm
+    # AI analysis switch: the GitHub variable (if configured) overrides the AIRLOCK_LLM env default.
+    env_default = parse_on_off(os.environ.get("AIRLOCK_LLM"))
+    app.state.llm_enabled = True if env_default is None else env_default
+    app.state.flag_source = f"github:{flag.repo}" if flag else "env"
 
-    app.state.llm_enabled = _load_llm_enabled(app.state.store)
-
-    def admin_required() -> bool:
-        return bool(os.environ.get("AIRLOCK_ADMIN_TOKEN"))
+    def apply_flag(value: bool) -> None:
+        app.state.llm_enabled = value
 
     def get_llm():
         if not app.state.llm_enabled:
@@ -90,15 +93,8 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
 
     @app.get("/settings")
     async def get_settings():
-        return {"llm_enabled": app.state.llm_enabled, "admin_required": admin_required()}
-
-    @app.post("/settings")
-    async def update_settings(body: SettingsUpdate, x_admin_token: str | None = Header(default=None)):
-        if admin_required() and x_admin_token != os.environ.get("AIRLOCK_ADMIN_TOKEN"):
-            raise HTTPException(401, "admin token required")
-        app.state.llm_enabled = body.llm_enabled
-        _settings_path(app.state.store).write_text(_json.dumps({"llm_enabled": body.llm_enabled}))
-        return {"llm_enabled": app.state.llm_enabled, "admin_required": admin_required()}
+        """Read-only: the mode is operated from the backend (GitHub variable or env), never from the UI."""
+        return {"llm_enabled": app.state.llm_enabled, "source": app.state.flag_source}
 
     @app.get("/targets")
     async def targets():

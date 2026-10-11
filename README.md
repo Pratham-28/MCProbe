@@ -37,13 +37,26 @@ TCP 80 (and 22 for you). Then on the instance:
 Open `http://<public-ip>/`. Logs: `journalctl -u airlock -f`. The fixture servers run as a
 second unit, `airlock-fixtures`.
 
-### Switching AI analysis on and off while live
-Deterministic checks always run. The LLM judge and the probing agent are controlled by the
-"Analysis" toggle in the top bar, which calls `POST /settings` and persists to
-`data/audits/settings.json` (survives restarts). Set `AIRLOCK_ADMIN_TOKEN=<secret>` in `.env`
-so only you can flip it on a public instance; the page asks for the token once. `AIRLOCK_LLM=off`
-only sets the initial default. Keep AI off for the public link and turn it on while presenting,
-so strangers cannot spend the shared LLM budget.
+### Switching AI analysis on and off while live (GitHub feature flag)
+Deterministic checks always run. The LLM judge and the probing agent are controlled from
+GitHub, not from the UI:
+
+1. In the repo: Settings → Secrets and variables → Actions → Variables → **New repository
+   variable**: name `AIRLOCK_LLM`, value `on` or `off`.
+2. Create a fine-grained personal access token for that repo with **Variables: Read-only**
+   (classic tokens: `repo` scope).
+3. On the server, in `.env`:
+
+       GITHUB_REPO=<owner>/<repo>
+       GITHUB_FLAG_TOKEN=<token>
+       # optional: GITHUB_FLAG_NAME=AIRLOCK_LLM  GITHUB_FLAG_INTERVAL=60
+
+   then `sudo systemctl restart airlock` once.
+
+The server polls the variable every 60 s; changing it in GitHub takes effect on the next
+scan with no redeploy. The top-bar badge shows the current mode read-only. Without
+`GITHUB_REPO`, the `AIRLOCK_LLM` env var is the default. Keep it `off` for the public link
+and flip to `on` while presenting, so strangers cannot spend the shared LLM budget.
 
 ## Test
     uv run pytest -q
