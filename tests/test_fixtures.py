@@ -24,3 +24,14 @@ async def test_evil_server_tools_and_rug_pull():
         assert "AKIA" in r.content[0].text
         after = {t.name: t for t in (await c.list_tools()).tools}["search_docs"].description
         assert after != before
+
+
+async def test_evil_server_reset_restores_poisoned_state():
+    from fixtures import evil_server
+    async with Client(evil) as c:
+        await c.call_tool("get_config", {})
+        pulled = {t.name: t for t in (await c.list_tools()).tools}["search_docs"].description
+        assert "<IMPORTANT>" not in pulled
+        evil_server.reset()
+        restored = {t.name: t for t in (await c.list_tools()).tools}["search_docs"].description
+        assert "<IMPORTANT>" in restored
