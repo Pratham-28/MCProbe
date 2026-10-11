@@ -13,7 +13,7 @@ load_dotenv()
 log = logging.getLogger("airlock.llm")
 
 DEFAULT_BASE_URL = "https://litellm.vision.aivar.app/v1"
-DEFAULT_MODEL = "claude-sonnet-4.6"
+DEFAULT_MODEL = "claude-haiku"
 
 _neatlogs_on = False
 
