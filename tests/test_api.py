@@ -103,3 +103,11 @@ async def test_llm_off_env_runs_without_key(tmp_path, monkeypatch):
     await wait_done(app, r.json()["audit_id"])
     body = (await c.get(f"/audits/{r.json()['audit_id']}")).json()
     assert body["grade"] == "A" and body["model"] == "none (LLM disabled)"
+
+
+async def test_whitepaper_page(client):
+    c, _ = client
+    r = await c.get("/whitepaper")
+    assert r.status_code == 200 and "Whitepaper" in r.text and "Implemented" in r.text
+    home = (await c.get("/")).text
+    assert 'href="/whitepaper"' in home and 'href="#proof"' not in home and "GitHub" not in home

@@ -61,6 +61,10 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
     async def index():
         return FileResponse(STATIC / "index.html")
 
+    @app.get("/whitepaper")
+    async def whitepaper():
+        return FileResponse(STATIC / "whitepaper.html")
+
     @app.get("/targets")
     async def targets():
         return TARGETS
