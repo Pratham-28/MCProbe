@@ -11,7 +11,7 @@ SRP — Prathamesh Yeole (lead); teammates: pending
 ## Stack
 Python 3.13 + uv, FastAPI + sse-starlette, `mcp` 2.3 client (Streamable HTTP with SSE
 fallback), LiteLLM endpoint (`claude-sonnet-4.6` by default), neatlogs SDK, tiktoken,
-Tailwind CDN + vanilla JS. Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ (AWS EC2 t3.small, us-east-1)
+Tailwind CDN + vanilla JS. Repo: https://github.com/Pratham-28/MCProbe · Live: https://mcprobe.duckdns.org/ (AWS EC2 t3.small, us-east-1, Caddy + Let's Encrypt, DuckDNS)
 
 ## How neatlogs, Entire, cfo.ai are used
 - **neatlogs**: `neatlogs.wrap(AsyncOpenAI())` traces every judge and prober LLM call;
@@ -111,4 +111,4 @@ batching, prompt/resource content retrieval, deeper schema analysis, OAuth, stdi
 servers and skill folders, report sharing, EC2 deployment, threshold tuning.
 
 ## Submission
-Repo: https://github.com/Pratham-28/MCProbe · Live: http://54.197.141.241/ · Demo video: pending · Checkpoint: https://entire.io/gh/Pratham-28/MCProbe/commit/a5d06cf2fb2badc9dc1063637a8b51329d0270bd (ID 01M4NARNZSJWX446H9KT8GDXZY) · Business plan: pending
+Repo: https://github.com/Pratham-28/MCProbe · Live: https://mcprobe.duckdns.org/ · Demo video: pending · Checkpoint: https://entire.io/gh/Pratham-28/MCProbe/commit/a5d06cf2fb2badc9dc1063637a8b51329d0270bd (ID 01M4NARNZSJWX446H9KT8GDXZY) · Business plan: pending
