@@ -25,6 +25,19 @@ Open http://localhost:8000, pick a target, Start Assessment.
 ## Verify tracing
     uv run python -m neatlogs doctor --probe   # expect TRACE_VISIBLE and TRACE_FINALIZED PASS
 
+## Deploy (AWS EC2, hackathon allowance)
+One `t3.small` in `us-east-1` inside `Hackathon_VPC`, Ubuntu 24.04, security group open on
+TCP 80 (and 22 for you). Then on the instance:
+
+    curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/deploy/setup_ec2.sh \
+      | REPO_URL=https://github.com/<owner>/<repo>.git bash
+    nano /opt/airlock/.env          # LITELLM_API_KEY, NEATLOGS_API_KEY, AIRLOCK_MODEL
+    sudo systemctl restart airlock
+
+Open `http://<public-ip>/`. Logs: `journalctl -u airlock -f`. The fixture servers run as a
+second unit, `airlock-fixtures`. For a public demo keep `AIRLOCK_LLM=off` or rely on replay
+so strangers can't spend the shared LLM budget; set `AIRLOCK_LLM=on` only while presenting.
+
 ## Test
     uv run pytest -q
 

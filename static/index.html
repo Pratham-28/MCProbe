@@ -78,7 +78,8 @@
     <p class="mt-5 text-sm text-slate-500">Nothing gets installed. Tools are only called behind a safety gate that refuses anything destructive.</p>
 
     <!-- opening animation: three scenes, 12 s loop, pure SVG + CSS -->
-    <div class="story mt-8 max-w-3xl mx-auto card p-4 sm:p-6 overflow-hidden" aria-label="Why Airlock: an agent connects to a server, a tool description hides an instruction to steal a key, Airlock catches it">
+    <!-- Opening animation is behind a flag: add ?story=1 to the URL to show it. -->
+    <div class="story hidden mt-8 max-w-3xl mx-auto card p-4 sm:p-6 overflow-hidden" aria-label="Why Airlock: an agent connects to a server, a tool description hides an instruction to steal a key, Airlock catches it">
       <svg viewBox="0 0 760 180" class="w-full h-auto" role="img">
         <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#6366f1"/></marker></defs>
         <!-- agent -->
@@ -176,6 +177,7 @@ const human = f => (/rug pull/i.test(f.title) ? RUG : (HUMAN[f.category] || {lab
 const bucket = f => (f.severity === "critical" || f.severity === "high") ? "serious" : f.severity === "medium" ? "note" : "minor";
 
 async function init() {
+  if (new URLSearchParams(location.search).get("story") === "1") document.querySelector(".story").classList.remove("hidden");
   targets = await (await fetch("/targets")).json();
   const order = ["fixture-evil", "fixture-clean", "deepwiki", "huggingface", "context7"];
   $("#chips").innerHTML = order.map(id => targets.find(t => t.id === id)).filter(Boolean)
