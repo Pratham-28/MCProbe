@@ -22,6 +22,13 @@ Tailwind CDN + vanilla JS. Repo: pending (public GitHub repo to be created).
 - **cfo.ai**: business plan (pricing, costs, revenue, runway): pending.
 
 ## Build log
+### 2026-10-11 (evening) — UI redesign
+Rebuilt the page as a single calm flow: headline + one input + "Try" chips → five
+plain-English scan steps with live probe lines → a verdict card (grade ring, one-sentence
+templated verdict, three numbers) → findings grouped as Serious / Worth knowing / Minor with
+human labels, "why it matters", "what to do", evidence behind a toggle → "Technical details"
+accordion. Added How-it-works and a Proof grid of real recent scans. Tests: 63 passed.
+
 ### 2026-10-11
 Planned: design spec, implementation plan, then iteration one: scaffold, scoring,
 static checks, fixture servers, MCP client, LLM client + test fake, judge, prober,
@@ -31,7 +38,7 @@ Plan: `docs/superpowers/plans/2026-10-11-airlock-iteration-one.md`.
 Tests that ran: `uv run pytest -q` → 53 passed.
 Manual verification (fake LLM, real fixture servers over HTTP): evil fixture → F (3/100,
 6 findings incl. rug pull critical), clean fixture → A (100), DeepWiki → A (100).
-Screenshot: `docs/evil-report-fake-llm.png`.
+Screenshots: `docs/ui-landing.png`, `docs/ui-scanning.png`, `docs/ui-verdict.png`.
 Keys arrived 14:25 IST. Switched default model to `claude-haiku` (budget).
 `python -m neatlogs doctor --probe` → PASS (TRACE_VISIBLE, TRACE_FINALIZED, all 8 checks).
 First live runs (claude-haiku, neatlogs tracing on, session_id = audit id):
@@ -51,9 +58,16 @@ pair (candidate: cut `RESPONSE_CHARS_TO_MODEL` and normalise model finding locat
 measure prompt tokens and duplicate count on DeepWiki).
 
 ## Evidence
-- Before/after: pending. Plan: audit the evil fixture with the first live build, record
-  trace link + `llm_usage.prompt_tokens` + findings count; make one measurable change
-  (e.g. judge input truncation or response-check coverage), re-run, record again.
+- Before/after (same target, same model `claude-haiku`, same prober caps):
+  - BEFORE — evil fixture, audit `13b514102f9c` (session id in neatlogs): grade F, **12 findings
+    of which 5 were duplicates** (the model's `record_finding` restated automatic findings under
+    free-text locations and sibling categories), 3 LLM calls, 7,475 prompt tokens.
+  - CHANGE — commit "drop model findings that duplicate automatic checks" + "family-based
+    dedupe": model locations are normalised to `tool:<name>` / `response:<name>`, and findings
+    are collapsed per (problem family, tool), keeping the most severe. Covered by
+    `test_model_findings_that_duplicate_automatic_ones_are_dropped` and three scoring tests.
+  - AFTER — evil fixture, audit `b84bfbbff7c5`: grade F, **7 findings, 0 duplicates**, 3 LLM
+    calls, 7,811 prompt tokens. Every card on the report is now a distinct problem.
 - Failure + recovery: the prober asks for `exec_shell`, the code gate refuses it, and the
   model continues with `read_notes` and `get_config` (visible in the Probe Log and in the
   trace). Also observed: `read_wiki_structure` called with empty args fails on DeepWiki

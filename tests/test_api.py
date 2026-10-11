@@ -35,7 +35,7 @@ async def wait_done(app, audit_id):
 async def test_index_and_targets(client):
     c, _ = client
     r = await c.get("/"); assert r.status_code == 200 and "Airlock" in r.text
-    assert 'id="target-select"' in r.text and "EventSource" in r.text
+    assert 'id="url-input"' in r.text and "EventSource" in r.text and "Technical details" in r.text
     r = await c.get("/targets"); assert r.status_code == 200 and r.json()[0]["id"] == "fixture-clean"
 
 

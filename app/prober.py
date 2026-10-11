@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 
 from app.models import Finding, Inventory, ProbeCall, ToolInfo
+from app.scoring import finding_key
 from app.static_checks import DESTRUCTIVE_WORDS, SECRET_PATTERNS, find_injection
 from app.tokens import count_tokens
 
@@ -133,10 +134,9 @@ def _normalise_location(fi: Finding, by_name: dict[str, ToolInfo]) -> None:
 
 
 def _duplicates_existing(fi: Finding, existing: list[Finding]) -> bool:
-    """Same category about the same tool as something already recorded -> duplicate."""
-    def tool_of(loc: str) -> str:
-        return loc.split(":", 1)[1] if ":" in loc else loc
-    return any(e.category == fi.category and tool_of(e.location) == tool_of(fi.location) for e in existing)
+    """Same problem family about the same tool as something already recorded -> duplicate."""
+    key = finding_key(fi)
+    return any(finding_key(e) == key for e in existing)
 
 
 def _tool_summary(inv: Inventory) -> str:

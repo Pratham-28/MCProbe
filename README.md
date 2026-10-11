@@ -4,7 +4,9 @@ Paste an MCP server URL; Airlock connects, inventories tools/prompts/resources,
 runs static and LLM checks, safely probes tools behind a code gate, detects rug
 pulls, and grades the server A–F. Built for neatHack 2026 (team SRP).
 
-![Evil fixture report](docs/evil-report-fake-llm.png)
+![Airlock landing](docs/ui-landing.png)
+
+![Airlock verdict for the evil fixture](docs/ui-verdict.png)
 
 ## Run
     cp .env.example .env   # fill LITELLM_API_KEY and NEATLOGS_API_KEY

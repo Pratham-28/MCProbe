@@ -3,223 +3,301 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airlock · MCP Security Assessment</title>
+<title>Airlock · Know what an MCP server does before you let it in</title>
+<meta name="description" content="Airlock scans an MCP server, reads every tool, safely tries them, and tells you in plain words whether it is safe to connect.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','ui-sans-serif','system-ui','sans-serif']}}}}</script>
 <style>
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .sev-critical { background:#fee2e2; color:#991b1b; } .sev-high { background:#fee2e2; color:#b91c1c; }
-  .sev-medium { background:#ffedd5; color:#9a3412; } .sev-low { background:#dbeafe; color:#1e40af; }
-  .sev-info { background:#f1f5f9; color:#334155; }
-  .grade-A{background:#dcfce7;color:#166534} .grade-B{background:#ecfccb;color:#3f6212}
-  .grade-C{background:#fef9c3;color:#854d0e} .grade-D{background:#ffedd5;color:#9a3412} .grade-F{background:#fee2e2;color:#991b1b}
+  html{scroll-behavior:smooth}
+  body{background:#f6f7fb;color:#0f172a}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .glow{background:
+    radial-gradient(60rem 28rem at 50% -8rem, rgba(99,102,241,.18), transparent 60%),
+    radial-gradient(40rem 20rem at 85% 10rem, rgba(16,185,129,.10), transparent 60%)}
+  .card{background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:1.25rem;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -20px rgba(15,23,42,.18)}
+  .chip{border:1px solid rgba(15,23,42,.1);background:#fff;border-radius:999px;padding:.35rem .8rem;font-size:.8rem;font-weight:500;color:#334155;transition:all .15s}
+  .chip:hover{border-color:#6366f1;color:#4338ca;background:#eef2ff}
+  .g-A{--g:#059669;--gb:#ecfdf5}.g-B{--g:#65a30d;--gb:#f7fee7}.g-C{--g:#d97706;--gb:#fffbeb}.g-D{--g:#ea580c;--gb:#fff7ed}.g-F{--g:#dc2626;--gb:#fef2f2}
+  .grade-badge{background:var(--gb);color:var(--g)}
+  .sev-serious{color:#b91c1c;background:#fef2f2}.sev-note{color:#b45309;background:#fffbeb}.sev-minor{color:#475569;background:#f1f5f9}
+  .spin{width:1rem;height:1rem;border:2px solid #c7d2fe;border-top-color:#4f46e5;border-radius:50%;animation:s .8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .fade{animation:f .35s ease-out both}@keyframes f{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  details>summary{list-style:none;cursor:pointer}details>summary::-webkit-details-marker{display:none}
+  .ring{transition:stroke-dashoffset .9s ease}
 </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
-<div class="flex min-h-screen">
-  <aside class="w-56 bg-slate-900 text-slate-200 flex flex-col">
-    <div class="px-5 py-5 border-b border-slate-800">
-      <div class="text-xl font-semibold text-white">Airlock</div>
-      <div class="text-xs text-slate-400">MCP Security Assessment</div>
+<body class="font-sans antialiased">
+
+<nav class="sticky top-0 z-20 backdrop-blur bg-[#f6f7fb]/80 border-b border-slate-900/5">
+  <div class="max-w-6xl mx-auto px-5 h-14 flex items-center gap-6">
+    <a href="#/" class="flex items-center gap-2 font-bold tracking-tight">
+      <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white grid place-items-center text-sm">◈</span> Airlock
+    </a>
+    <div class="ml-auto hidden sm:flex items-center gap-6 text-sm text-slate-600">
+      <a href="#how" class="hover:text-slate-900">How it works</a>
+      <a href="#proof" class="hover:text-slate-900">Proof</a>
+      <a href="https://github.com" id="gh-link" class="hover:text-slate-900">GitHub</a>
     </div>
-    <nav class="p-3 space-y-1 text-sm">
-      <a href="#/new" data-nav="new" class="block rounded px-3 py-2 hover:bg-slate-800">New Assessment</a>
-      <a href="#/list" data-nav="list" class="block rounded px-3 py-2 hover:bg-slate-800">Assessments</a>
-    </nav>
-    <div class="mt-auto p-4 text-xs text-slate-500">neatHack 2026 · team SRP</div>
-  </aside>
+  </div>
+</nav>
 
-  <main class="flex-1 p-8 max-w-7xl">
-    <section id="view-new">
-      <h1 class="text-2xl font-semibold">New MCP Assessment</h1>
-      <p class="text-slate-500 mb-5">Connect to an MCP server, discover its capabilities, analyze and probe it for security risks.</p>
+<header class="glow">
+  <div class="max-w-6xl mx-auto px-5 pt-16 pb-12 text-center">
+    <p class="text-xs font-semibold tracking-widest text-indigo-600 uppercase mb-4">MCP server safety check</p>
+    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] max-w-3xl mx-auto">Know what an MCP server does <span class="text-indigo-600">before</span> you let it in.</h1>
+    <p class="mt-5 text-lg text-slate-600 max-w-2xl mx-auto">Paste a server URL. Airlock connects, reads every tool, safely tries them, and tells you in plain words whether it is safe to connect your AI agent.</p>
 
-      <div class="bg-white rounded-xl shadow-sm p-5 flex flex-wrap gap-4 items-end">
-        <div class="flex-1 min-w-[280px]">
-          <label class="block text-sm font-medium mb-1">MCP Server</label>
-          <select id="target-select" class="w-full border rounded-lg px-3 py-2"></select>
-          <div id="target-desc" class="text-xs text-slate-500 mt-1"></div>
-        </div>
-        <div id="custom-wrap" class="hidden flex-1 min-w-[280px]">
-          <label class="block text-sm font-medium mb-1">URL</label>
-          <input id="custom-url" class="w-full border rounded-lg px-3 py-2 mono" placeholder="https://host/mcp">
-        </div>
-        <div class="min-w-[220px]">
-          <label class="block text-sm font-medium mb-1">Bearer token (optional)</label>
-          <input id="token" type="password" class="w-full border rounded-lg px-3 py-2" placeholder="never stored">
-        </div>
-        <button id="start" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-5 py-2.5">Start Assessment →</button>
+    <form id="scan-form" class="mt-8 max-w-2xl mx-auto">
+      <div class="card p-2 flex flex-col sm:flex-row gap-2">
+        <input id="url-input" class="flex-1 px-4 py-3 rounded-xl bg-transparent outline-none text-base mono placeholder:font-sans" placeholder="https://your-mcp-server.com/mcp" autocomplete="off" spellcheck="false">
+        <input id="token-input" type="password" class="hidden sm:w-44 px-4 py-3 rounded-xl bg-slate-50 outline-none text-sm" placeholder="Bearer token" autocomplete="off">
+        <button type="submit" id="scan-btn" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition">Scan server</button>
       </div>
+      <div id="form-error" class="hidden mt-3 text-sm text-red-600"></div>
+    </form>
+    <div class="mt-4 flex flex-wrap justify-center items-center gap-2 text-sm">
+      <span class="text-slate-500 mr-1">Try</span>
+      <span id="chips"></span>
+      <button type="button" id="token-toggle" class="chip">+ token</button>
+    </div>
+    <p class="mt-5 text-sm text-slate-500">Nothing gets installed. Tools are only called behind a safety gate that refuses anything destructive.</p>
+  </div>
+</header>
 
-      <ol id="stepper" class="flex justify-between my-6 text-sm"></ol>
+<main class="max-w-6xl mx-auto px-5 pb-20">
 
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div class="lg:col-span-3 bg-white rounded-xl shadow-sm p-5">
-          <h2 class="font-semibold mb-3">Assessment Progress</h2>
-          <ul id="timeline" class="space-y-3"></ul>
+  <section id="scan" class="hidden fade">
+    <div class="card p-6 sm:p-8 max-w-3xl mx-auto">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-xs font-semibold tracking-widest text-slate-500 uppercase">Scanning</div>
+          <div id="scan-target" class="mt-1 font-semibold text-lg"></div>
+          <div id="scan-url" class="mono text-xs text-slate-500 break-all"></div>
         </div>
-        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-5" id="summary"></div>
+        <div id="scan-status" class="text-sm font-medium text-indigo-600 whitespace-nowrap"></div>
       </div>
+      <ol id="steps" class="mt-6 space-y-4"></ol>
+    </div>
+  </section>
 
-      <div class="bg-white rounded-xl shadow-sm mt-5">
-        <div class="flex items-center border-b px-4">
-          <nav id="tabs" class="flex gap-5 text-sm"></nav>
-          <div class="ml-auto py-2 flex gap-2">
-            <button id="download" class="text-sm border rounded-lg px-3 py-1.5 hover:bg-slate-50">Download JSON</button>
-            <a id="permalink" class="text-sm border rounded-lg px-3 py-1.5 hover:bg-slate-50" href="#">Permalink</a>
-          </div>
-        </div>
-        <div id="tab-body" class="p-4"></div>
-      </div>
-    </section>
+  <section id="result" class="hidden fade mt-8"></section>
 
-    <section id="view-list" class="hidden">
-      <h1 class="text-2xl font-semibold mb-5">Assessments</h1>
-      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr>
-          <th class="px-4 py-2">Grade</th><th class="px-4 py-2">Target</th><th class="px-4 py-2">Server</th><th class="px-4 py-2">Finished</th></tr></thead>
-          <tbody id="list-body"></tbody></table>
-      </div>
-    </section>
-  </main>
-</div>
+  <section id="how" class="mt-24">
+    <h2 class="text-3xl font-extrabold tracking-tight text-center">How it works</h2>
+    <p class="text-center text-slate-600 mt-2">Four steps, about half a minute, nothing installed on your machine.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+      <div class="card p-5"><div class="text-2xl">🔌</div><div class="font-semibold mt-3">Connect</div><p class="text-sm text-slate-600 mt-1">Opens a real MCP session over Streamable HTTP, with SSE as a fallback.</p></div>
+      <div class="card p-5"><div class="text-2xl">🔍</div><div class="font-semibold mt-3">Inspect</div><p class="text-sm text-slate-600 mt-1">Reads every tool, prompt and resource. Flags hidden instructions, bloated descriptions and dangerous capabilities.</p></div>
+      <div class="card p-5"><div class="text-2xl">🧪</div><div class="font-semibold mt-3">Probe safely</div><p class="text-sm text-slate-600 mt-1">An AI agent tries read-only tools with harmless inputs. A code-level gate blocks anything destructive.</p></div>
+      <div class="card p-5"><div class="text-2xl">🏁</div><div class="font-semibold mt-3">Grade</div><p class="text-sm text-slate-600 mt-1">Every finding is scored and you get a grade from A to F with the evidence behind it.</p></div>
+    </div>
+  </section>
+
+  <section id="proof" class="mt-24">
+    <h2 class="text-3xl font-extrabold tracking-tight text-center">Every grade comes from a real run</h2>
+    <p class="text-center text-slate-600 mt-2">Recent scans on this instance. Click one to open its report.</p>
+    <div id="recent" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8"></div>
+  </section>
+</main>
+
+<footer class="border-t border-slate-900/5">
+  <div class="max-w-6xl mx-auto px-5 py-8 text-sm text-slate-500 flex flex-col sm:flex-row gap-2 justify-between">
+    <span>Built in 48 hours at neatHack 2026 by team SRP.</span>
+    <span>Every LLM call traced with neatlogs · checkpoints by Entire</span>
+  </div>
+</footer>
 
 <script>
-const PHASES = [["connect","Connect"],["discover","Discover"],["analyze","Analyze"],["probe","Probe"],["report","Report"]];
-const SEVS = ["critical","high","medium","low","info"];
-let report = emptyReport(), tab = "findings", es = null, probeCalls = [], logs = {};
+const STEPS = [
+  ["connect",  "Connecting to the server"],
+  ["discover", "Reading what it offers"],
+  ["analyze",  "Checking for hidden instructions"],
+  ["probe",    "Safely trying its tools"],
+  ["report",   "Writing the verdict"],
+];
+const HUMAN = {
+  tool_poisoning:        {label:"Hidden instructions in a tool", why:"A tool description contains orders aimed at your AI instead of describing what the tool does. Agents tend to follow text they read.", fragment:"hides instructions aimed at your AI"},
+  prompt_injection:      {label:"Server instructions steer your AI", why:"The server's own instructions try to change how your AI behaves rather than explain the server.", fragment:"tries to steer your AI through its instructions"},
+  response_injection:    {label:"Tool output tries to hijack your AI", why:"A tool returned text that gives your AI new orders. Output like this is how agents get tricked into leaking data.", fragment:"returns output that tries to hijack your AI"},
+  secret_leak:           {label:"Leaked credentials", why:"A tool returned something shaped like a real key or token. Anything that reads it, including your AI's logs, now has it.", fragment:"leaks a credential"},
+  excessive_permissions: {label:"Dangerous capability", why:"A tool can do far more than this server needs, such as running commands or deleting data, and it is not marked as such.", fragment:"exposes dangerous capabilities"},
+  context_bloat:         {label:"Wastes your AI's context window", why:"Every request your AI makes carries this server's tool list. Big lists cost money and dilute attention on every turn.", fragment:"eats a large share of your AI's context"},
+  data_exfiltration:     {label:"Tries to send your data elsewhere", why:"Something in this server pushes your data toward a third party.", fragment:"tries to send your data elsewhere"},
+  schema_quality:        {label:"Sloppy input validation", why:"A tool accepts arbitrary input, so your AI cannot tell what is valid and the server cannot reject bad calls.", fragment:"accepts poorly validated input"},
+  tool_shadowing:        {label:"Impersonates another tool", why:"A tool name mimics a well-known tool, which can trick your AI into calling the wrong one.", fragment:"impersonates another tool"},
+  insecure_transport:    {label:"Unencrypted connection", why:"Tool calls and any token you supply travel in plain text.", fragment:"talks over an unencrypted connection"},
+  connectivity:          {label:"Could not connect", why:"Airlock could not open an MCP session, so nothing could be checked.", fragment:"could not be reached"},
+};
+const RUG = {label:"Changed its tools after use", why:"The server showed one set of tool definitions before use and a different set after. This is how a trusted server turns malicious later.", fragment:"changed its tools after being used"};
+const VERDICT = {A:"Looks safe to connect.", B:"Mostly fine. Read the notes below.", C:"Connect with caution.", D:"Do not connect.", F:"Do not connect."};
+const WEIGHT = {critical:30, high:15, medium:7, low:2, info:0};
 
-function emptyReport(){ return {phases: PHASES.map(([p])=>({phase:p,status:"pending",detail:"",seconds:null})),
-  findings:[], probe_calls:[], inventory:null, score:0, grade:null, severity_counts:{}, url:"", audit_id:null}; }
-const $ = (s)=>document.querySelector(s);
-const esc = (s)=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let targets = [], report = null, probeCalls = [], es = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const human = f => (/rug pull/i.test(f.title) ? RUG : (HUMAN[f.category] || {label:f.category, why:f.detail, fragment:"has issues"}));
+const bucket = f => (f.severity === "critical" || f.severity === "high") ? "serious" : f.severity === "medium" ? "note" : "minor";
 
-async function loadTargets(){
-  const t = await (await fetch("/targets")).json();
-  const sel = $("#target-select");
-  sel.innerHTML = t.map(x=>`<option value="${esc(x.url)}" data-desc="${esc(x.description)}">${esc(x.label)}</option>`).join("")
-    + `<option value="__custom">Custom URL…</option>`;
-  sel.onchange = ()=>{ $("#custom-wrap").classList.toggle("hidden", sel.value!=="__custom");
-    $("#target-desc").textContent = sel.selectedOptions[0].dataset.desc || ""; };
-  sel.onchange();
+async function init() {
+  targets = await (await fetch("/targets")).json();
+  const order = ["fixture-evil", "fixture-clean", "deepwiki", "huggingface", "context7"];
+  $("#chips").innerHTML = order.map(id => targets.find(t => t.id === id)).filter(Boolean)
+    .map(t => `<button type="button" class="chip mr-2 mb-2" data-url="${esc(t.url)}" title="${esc(t.description)}">${esc(t.label.replace("Fixture: ", "").replace(" demo server", " demo"))}</button>`).join("");
+  $("#chips").querySelectorAll("button").forEach(b => b.onclick = () => { $("#url-input").value = b.dataset.url; start(); });
+  $("#token-toggle").onclick = () => { $("#token-input").classList.toggle("hidden"); $("#token-input").focus(); };
+  $("#scan-form").onsubmit = e => { e.preventDefault(); start(); };
+  loadRecent();
+  route();
 }
 
-async function start(){
-  const sel = $("#target-select");
-  const url = sel.value==="__custom" ? $("#custom-url").value.trim() : sel.value;
-  const label = sel.value==="__custom" ? null : sel.selectedOptions[0].textContent;
-  const body = {url, label}; const tok = $("#token").value.trim(); if (tok) body.bearer_token = tok;
-  const r = await fetch("/audits",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-  if(!r.ok){ alert("Could not start: "+(await r.text())); return; }
-  const {audit_id} = await r.json();
-  location.hash = "#/audits/"+audit_id;
+async function start() {
+  const url = $("#url-input").value.trim();
+  const err = $("#form-error"); err.classList.add("hidden");
+  if (!/^https?:\/\//.test(url)) { err.textContent = "Enter a full URL starting with http:// or https://"; err.classList.remove("hidden"); return; }
+  const preset = targets.find(t => t.url === url);
+  const body = { url, label: preset ? preset.label : null };
+  const tok = $("#token-input").value.trim(); if (tok) body.bearer_token = tok;
+  $("#scan-btn").disabled = true; $("#scan-btn").textContent = "Starting…";
+  try {
+    const r = await fetch("/audits", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    location.hash = "#/scan/" + (await r.json()).audit_id;
+  } catch (e) {
+    err.textContent = "Could not start: " + e.message; err.classList.remove("hidden");
+  } finally { $("#scan-btn").disabled = false; $("#scan-btn").textContent = "Scan server"; }
 }
 
-function watch(id){
-  if(es) es.close();
-  report = emptyReport(); report.audit_id = id; probeCalls=[]; logs={}; render();
+function watch(id) {
+  if (es) es.close();
+  report = { audit_id: id, url: "", target_label: "", phases: STEPS.map(([p]) => ({ phase: p, status: "pending", detail: "", seconds: null })), findings: [], inventory: null, grade: null };
+  probeCalls = [];
+  $("#scan").classList.remove("hidden"); $("#result").classList.add("hidden"); $("#result").innerHTML = "";
+  renderScan();
+  $("#scan").scrollIntoView({ behavior: "smooth", block: "start" });
+  fetch(`/audits/${id}`).then(r => r.ok ? r.json() : null).then(r => { if (r && !report.grade) { report.url = r.url; report.target_label = r.target_label; renderScan(); } });
   es = new EventSource(`/audits/${id}/events`);
-  es.addEventListener("phase", e=>{ const p=JSON.parse(e.data); Object.assign(report.phases.find(x=>x.phase===p.phase), p); render(); });
-  es.addEventListener("log", e=>{ const l=JSON.parse(e.data); (logs[l.phase] ||= []).push(l.message); render(); });
-  es.addEventListener("probe_call", e=>{ probeCalls.push(JSON.parse(e.data)); render(); });
-  es.addEventListener("finding", e=>{ report.findings.push(JSON.parse(e.data)); render(); });
-  es.addEventListener("done", e=>{ report = JSON.parse(e.data); probeCalls = report.probe_calls; es.close(); render(); });
-  es.addEventListener("error", e=>{ if(e.data){ (logs.report ||= []).push("Error: "+JSON.parse(e.data).message); render(); } });
+  es.addEventListener("phase", e => { const p = JSON.parse(e.data); Object.assign(report.phases.find(x => x.phase === p.phase), p); renderScan(); });
+  es.addEventListener("probe_call", e => { probeCalls.push(JSON.parse(e.data)); renderScan(); });
+  es.addEventListener("finding", e => { report.findings.push(JSON.parse(e.data)); });
+  es.addEventListener("done", e => { report = JSON.parse(e.data); probeCalls = report.probe_calls; es.close(); renderScan(); renderResult(); loadRecent(); });
+  es.addEventListener("error", e => { if (e.data) { $("#scan-status").textContent = "Error: " + JSON.parse(e.data).message; } });
 }
 
-function statusBadge(s){
-  const m={completed:["✔ Completed","text-emerald-600"],running:["● In progress","text-indigo-600"],failed:["✖ Failed","text-red-600"],
-    skipped:["– Skipped","text-slate-400"],pending:["○ Pending","text-slate-400"]}[s]||["",""];
-  return `<span class="${m[1]} text-sm">${m[0]}</span>`;
+function renderScan() {
+  $("#scan-target").textContent = report.target_label || "Custom server";
+  $("#scan-url").textContent = report.url || "";
+  const running = report.phases.find(p => p.status === "running");
+  $("#scan-status").innerHTML = report.grade ? `Done in ${report.phases.reduce((a, p) => a + (p.seconds || 0), 0).toFixed(1)}s`
+    : running ? `<span class="inline-flex items-center gap-2"><span class="spin"></span>${esc(STEPS.find(s => s[0] === running.phase)[1])}…</span>` : "Starting…";
+  $("#steps").innerHTML = STEPS.map(([key, label]) => {
+    const p = report.phases.find(x => x.phase === key);
+    const icon = p.status === "completed" ? `<span class="w-6 h-6 rounded-full bg-emerald-500 text-white grid place-items-center text-xs">✓</span>`
+      : p.status === "running" ? `<span class="w-6 h-6 grid place-items-center"><span class="spin"></span></span>`
+      : p.status === "failed" ? `<span class="w-6 h-6 rounded-full bg-red-500 text-white grid place-items-center text-xs">!</span>`
+      : p.status === "skipped" ? `<span class="w-6 h-6 rounded-full bg-slate-200 text-slate-500 grid place-items-center text-xs">–</span>`
+      : `<span class="w-6 h-6 rounded-full border-2 border-slate-200"></span>`;
+    const calls = key === "probe" ? probeCalls.map(c => `<div class="mt-1.5 text-xs mono ${c.ok ? "text-slate-600" : "text-amber-700"}">${c.ok ? "✓" : "✕"} ${esc(c.tool)}(${esc(JSON.stringify(c.arguments).slice(0, 60))})${c.note ? ` <span class="font-sans">· ${esc(c.note)}</span>` : ""}</div>`).join("") : "";
+    return `<li class="flex gap-3 items-start"><div class="mt-0.5">${icon}</div><div class="flex-1 min-w-0"><div class="flex justify-between gap-3"><span class="font-medium ${p.status === "pending" ? "text-slate-400" : ""}">${label}</span><span class="text-xs text-slate-400">${p.seconds != null && p.status !== "running" ? p.seconds + "s" : ""}</span></div>${p.detail ? `<div class="text-sm text-slate-500">${esc(p.detail)}</div>` : ""}${calls}</div></li>`;
+  }).join("");
 }
 
-function render(){
-  $("#stepper").innerHTML = PHASES.map(([p,label],i)=>{ const st=report.phases.find(x=>x.phase===p).status;
-    const ring = st==="completed"?"bg-emerald-500 text-white":st==="running"?"bg-indigo-600 text-white":st==="failed"?"bg-red-500 text-white":"bg-white border text-slate-500";
-    return `<li class="flex items-center gap-2"><span class="w-7 h-7 rounded-full flex items-center justify-center text-xs ${ring}">${i+1}</span><span class="font-medium">${label}</span></li>`; }).join("");
-
-  $("#timeline").innerHTML = report.phases.map(p=>{
-    const extra = (logs[p.phase]||[]).map(m=>`<div class="text-xs text-slate-500">${esc(m)}</div>`).join("");
-    const calls = p.phase==="probe" ? probeCalls.map(c=>`<div class="text-xs mono mt-1 ${c.ok?"text-slate-600":"text-amber-700"}">
-        ${c.ok?"✔":"✖"} ${esc(c.tool)}(${esc(JSON.stringify(c.arguments)).slice(0,80)}) · ${c.response_tokens} tok · ${c.seconds}s ${c.note?"· "+esc(c.note):""}</div>`).join("") : "";
-    return `<li class="flex gap-3"><div class="w-2 mt-2 h-2 rounded-full ${p.status==="completed"?"bg-emerald-500":p.status==="running"?"bg-indigo-500":p.status==="failed"?"bg-red-500":"bg-slate-300"}"></div>
-      <div class="flex-1"><div class="flex justify-between"><span class="font-medium capitalize">${p.phase}</span>${statusBadge(p.status)}</div>
-      <div class="text-sm text-slate-500">${esc(p.detail)}</div>${extra}${calls}</div>
-      <div class="text-xs text-slate-400 w-12 text-right">${p.seconds!=null?p.seconds+"s":""}</div></li>`; }).join("");
-
-  const inv = report.inventory; const sc = report.severity_counts||{};
-  const dur = report.phases.reduce((a,p)=>a+(p.seconds||0),0).toFixed(1);
-  $("#summary").innerHTML = `
-    <div class="flex items-start justify-between"><h2 class="font-semibold">Assessment Summary</h2>
-      ${report.grade?`<div class="grade-${report.grade} rounded-lg px-3 py-1 font-bold text-lg">${report.grade} <span class="text-sm font-medium">${report.score}/100</span></div>`:""}</div>
-    <div class="mt-3 text-sm"><div class="font-medium">${esc(report.target_label||"")}</div><div class="mono text-xs text-slate-500 break-all">${esc(report.url||"")}</div></div>
-    <dl class="grid grid-cols-2 gap-2 mt-4 text-sm">
-      <dt class="text-slate-500">Server</dt><dd>${esc(inv?.server_name||"–")} ${esc(inv?.server_version||"")}</dd>
-      <dt class="text-slate-500">Transport</dt><dd>${esc(inv?.transport||"–")}</dd>
-      <dt class="text-slate-500">Authentication</dt><dd>${inv?(inv.authenticated?"Bearer":"None"):"–"}</dd>
-      <dt class="text-slate-500">Protocol</dt><dd>${esc(inv?.protocol_version||"–")}</dd>
-      <dt class="text-slate-500">Duration</dt><dd>${dur}s</dd></dl>
-    <h3 class="font-medium mt-4 mb-2">Capabilities Discovered</h3>
-    <div class="grid grid-cols-4 gap-2 text-center text-sm">
-      ${[["Tools",inv?.tools?.length],["Resources",inv?.resources?.length],["Prompts",inv?.prompts?.length],["Tokens",inv?.total_tokens]]
-        .map(([k,v])=>`<div class="bg-slate-50 rounded-lg p-2"><div class="text-lg font-semibold">${v??"–"}</div><div class="text-xs text-slate-500">${k}</div></div>`).join("")}</div>
-    <h3 class="font-medium mt-4 mb-2">Security Findings</h3>
-    <div class="grid grid-cols-5 gap-2 text-center text-sm">
-      ${SEVS.map(s=>`<div class="sev-${s} rounded-lg p-2"><div class="text-lg font-semibold">${sc[s]??report.findings.filter(f=>f.severity===s).length}</div><div class="text-xs capitalize">${s}</div></div>`).join("")}</div>`;
-
-  const tabs = [["findings",`Findings (${report.findings.length})`],["tools",`Tools (${inv?.tools?.length??0})`],["resources",`Resources (${inv?.resources?.length??0})`],
-    ["prompts",`Prompts (${inv?.prompts?.length??0})`],["probe",`Probe Log (${probeCalls.length})`],["raw","Raw JSON"]];
-  $("#tabs").innerHTML = tabs.map(([k,l])=>`<button data-tab="${k}" class="py-3 border-b-2 ${tab===k?"border-indigo-600 text-indigo-700":"border-transparent text-slate-500"}">${l}</button>`).join("");
-  $("#tabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();});
-  $("#tab-body").innerHTML = renderTab();
-  $("#permalink").href = report.audit_id?`#/audits/${report.audit_id}`:"#";
+function verdictSentence(r) {
+  if (!r.findings.length) return "We connected, read every tool, and tried the safe ones. Nothing suspicious turned up.";
+  const ranked = [...r.findings].sort((a, b) => WEIGHT[b.severity] - WEIGHT[a.severity]);
+  const frags = []; for (const f of ranked) { const fr = human(f).fragment; if (!frags.includes(fr)) frags.push(fr); if (frags.length === 2) break; }
+  return "This server " + frags.join(" and ") + ".";
 }
 
-function renderTab(){
-  const inv = report.inventory;
-  if(tab==="findings"){
-    const order = Object.fromEntries(SEVS.map((s,i)=>[s,i]));
-    const fs = [...report.findings].sort((a,b)=>order[a.severity]-order[b.severity]);
-    if(!fs.length) return `<div class="text-slate-500 text-sm">No findings yet.</div>`;
-    return fs.map(f=>`<div class="border rounded-lg p-4 mb-3">
-      <div class="flex items-center gap-3"><span class="sev-${f.severity} text-xs font-semibold uppercase rounded px-2 py-0.5">${f.severity}</span>
-        <div class="font-medium">${esc(f.title)}</div>
-        <div class="ml-auto flex gap-2 text-xs"><span class="bg-violet-100 text-violet-800 rounded px-2 py-0.5">${esc(f.category)}</span>
-          <span class="bg-slate-100 rounded px-2 py-0.5 mono">${esc(f.location)}</span><span class="bg-slate-100 rounded px-2 py-0.5">${esc(f.source)}</span></div></div>
-      <div class="text-sm text-slate-600 mt-1">${esc(f.detail)}</div>
-      <div class="grid md:grid-cols-2 gap-3 mt-3 text-sm">
-        <details open class="bg-slate-50 rounded p-3"><summary class="cursor-pointer font-medium">Evidence</summary><pre class="mono text-xs text-red-700 whitespace-pre-wrap mt-2">${esc(f.evidence)}</pre></details>
-        <details open class="bg-slate-50 rounded p-3"><summary class="cursor-pointer font-medium">Recommendation</summary><div class="mt-2">${esc(f.recommendation)}</div></details></div></div>`).join("");
-  }
-  if(tab==="tools") return !inv ? "" : `<table class="w-full text-sm"><thead class="text-left text-slate-500"><tr><th class="py-1">Name</th><th>Tokens</th><th>Annotations</th><th>Description</th></tr></thead><tbody>`
-    + inv.tools.map(t=>`<tr class="border-t align-top"><td class="py-2 mono">${esc(t.name)}</td><td>${t.tokens}</td><td class="text-xs mono">${esc(JSON.stringify(t.annotations))}</td><td class="text-slate-600">${esc((t.description||"").slice(0,300))}</td></tr>`).join("")+`</tbody></table>`;
-  if(tab==="resources") return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(inv?.resources??[],null,2))}</pre>`;
-  if(tab==="prompts") return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(inv?.prompts??[],null,2))}</pre>`;
-  if(tab==="probe") return probeCalls.length ? probeCalls.map(c=>`<div class="border rounded-lg p-3 mb-2 text-sm"><div class="mono">${c.ok?"✔":"✖"} ${esc(c.tool)} ${esc(JSON.stringify(c.arguments))}</div>
-      <div class="text-xs text-slate-500">${c.response_tokens} tokens · ${c.seconds}s ${c.note?"· "+esc(c.note):""}</div><pre class="mono text-xs whitespace-pre-wrap mt-1 text-slate-600">${esc(c.response_excerpt)}</pre></div>`).join("") : `<div class="text-slate-500 text-sm">No tool calls yet.</div>`;
-  return `<pre class="mono text-xs whitespace-pre-wrap">${esc(JSON.stringify(report,null,2))}</pre>`;
+function renderResult() {
+  const r = report, inv = r.inventory || {};
+  const groups = { serious: [], note: [], minor: [] };
+  for (const f of r.findings) groups[bucket(f)].push(f);
+  const circ = 2 * Math.PI * 44, off = circ * (1 - (r.score || 0) / 100);
+  const card = f => { const h = human(f); return `
+    <div class="card p-5">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="sev-${bucket(f)} text-[11px] font-bold uppercase tracking-wide rounded-full px-2.5 py-1">${f.severity}</span>
+        <span class="font-semibold">${esc(h.label)}</span>
+        <span class="text-xs text-slate-400 mono ml-auto">${esc(f.location)}</span>
+      </div>
+      <p class="text-sm text-slate-700 mt-2">${esc(h.why)}</p>
+      <p class="text-sm text-slate-500 mt-1">${esc(f.detail)}</p>
+      ${f.recommendation ? `<p class="text-sm mt-2"><span class="font-medium text-slate-900">What to do:</span> ${esc(f.recommendation)}</p>` : ""}
+      ${f.evidence ? `<details class="mt-3"><summary class="text-sm font-medium text-indigo-700">Show evidence</summary><pre class="mt-2 p-3 rounded-xl bg-slate-50 text-xs mono text-red-700 whitespace-pre-wrap">${esc(f.evidence)}</pre></details>` : ""}
+    </div>`; };
+  const group = (title, sub, list) => list.length ? `<div class="mt-8"><h3 class="font-bold text-lg">${title} <span class="text-slate-400 font-medium">${list.length}</span></h3><p class="text-sm text-slate-500">${sub}</p><div class="grid gap-3 mt-3">${list.map(card).join("")}</div></div>` : "";
+  const tools = (inv.tools || []);
+  $("#result").innerHTML = `
+    <div class="card p-6 sm:p-8 g-${r.grade} max-w-3xl mx-auto">
+      <div class="flex flex-col sm:flex-row gap-6 items-center">
+        <div class="relative w-32 h-32 shrink-0">
+          <svg viewBox="0 0 100 100" class="w-32 h-32 -rotate-90"><circle cx="50" cy="50" r="44" fill="none" stroke="#e2e8f0" stroke-width="8"/><circle class="ring" cx="50" cy="50" r="44" fill="none" stroke="var(--g)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>
+          <div class="absolute inset-0 grid place-items-center"><div class="text-center"><div class="text-4xl font-extrabold" style="color:var(--g)">${r.grade}</div><div class="text-xs text-slate-500 -mt-1">${r.score}/100</div></div></div>
+        </div>
+        <div class="text-center sm:text-left">
+          <div class="text-xs font-semibold tracking-widest text-slate-500 uppercase">Verdict</div>
+          <div class="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1" style="color:var(--g)">${VERDICT[r.grade]}</div>
+          <p class="text-slate-700 mt-2">${esc(verdictSentence(r))}</p>
+          <div class="text-sm text-slate-500 mt-2">${esc(r.target_label || "")} <span class="mono text-xs">${esc(r.url)}</span></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3 mt-6 text-center">
+        <div class="rounded-xl bg-white/70 p-3"><div class="text-2xl font-extrabold text-red-600">${groups.serious.length}</div><div class="text-xs text-slate-500">serious problems</div></div>
+        <div class="rounded-xl bg-white/70 p-3"><div class="text-2xl font-extrabold text-amber-600">${groups.note.length}</div><div class="text-xs text-slate-500">worth knowing</div></div>
+        <div class="rounded-xl bg-white/70 p-3"><div class="text-2xl font-extrabold text-slate-800">${tools.length}</div><div class="text-xs text-slate-500">tools exposed · ${inv.total_tokens || 0} tokens</div></div>
+      </div>
+    </div>
+    <div class="max-w-3xl mx-auto">
+      ${group("Serious problems", "Reasons not to connect this server to an agent.", groups.serious)}
+      ${group("Worth knowing", "Not dangerous on their own, but they cost you or hint at sloppiness.", groups.note)}
+      ${group("Minor", "Housekeeping.", groups.minor)}
+      <details class="card mt-10 overflow-hidden">
+        <summary class="px-6 py-4 font-semibold flex items-center justify-between">Technical details <span class="text-slate-400 text-sm font-normal">tools, probe log, raw JSON</span></summary>
+        <div class="px-6 pb-6 text-sm">
+          <div class="grid sm:grid-cols-4 gap-3 mt-2">
+            <div><div class="text-xs text-slate-500">Server</div><div class="font-medium">${esc(inv.server_name || "–")} ${esc(inv.server_version || "")}</div></div>
+            <div><div class="text-xs text-slate-500">Transport</div><div class="font-medium">${esc(inv.transport || "–")} · ${inv.authenticated ? "bearer" : "no auth"}</div></div>
+            <div><div class="text-xs text-slate-500">Protocol</div><div class="font-medium">${esc(inv.protocol_version || "–")}</div></div>
+            <div><div class="text-xs text-slate-500">Model · tokens</div><div class="font-medium">${esc(r.model)} · ${(r.llm_usage || {}).prompt_tokens || 0}+${(r.llm_usage || {}).completion_tokens || 0}</div></div>
+          </div>
+          <h4 class="font-semibold mt-6 mb-2">Tools (${tools.length})</h4>
+          <div class="overflow-x-auto"><table class="w-full text-xs"><thead class="text-left text-slate-500"><tr><th class="py-1 pr-3">Name</th><th class="pr-3">Tokens</th><th class="pr-3">Annotations</th><th>Description</th></tr></thead><tbody>
+            ${tools.map(t => `<tr class="border-t align-top"><td class="py-1.5 pr-3 mono whitespace-nowrap">${esc(t.name)}</td><td class="pr-3">${t.tokens}</td><td class="pr-3 mono">${esc(JSON.stringify(t.annotations))}</td><td class="text-slate-600">${esc((t.description || "").slice(0, 200))}</td></tr>`).join("")}
+          </tbody></table></div>
+          <h4 class="font-semibold mt-6 mb-2">Probe log (${(r.probe_calls || []).length})</h4>
+          ${(r.probe_calls || []).map(c => `<div class="border-t py-2"><div class="mono text-xs ${c.ok ? "" : "text-amber-700"}">${c.ok ? "✓" : "✕"} ${esc(c.tool)} ${esc(JSON.stringify(c.arguments))} <span class="text-slate-400">· ${c.response_tokens} tok · ${c.seconds}s</span></div>${c.note ? `<div class="text-xs text-slate-500">${esc(c.note)}</div>` : ""}${c.response_excerpt ? `<pre class="mt-1 text-xs mono text-slate-500 whitespace-pre-wrap">${esc(c.response_excerpt.slice(0, 300))}</pre>` : ""}</div>`).join("") || `<div class="text-slate-500">No tools were called.</div>`}
+          <div class="flex flex-wrap gap-3 mt-6">
+            <button id="dl" class="chip">Download JSON</button>
+            <a class="chip" href="#/scan/${esc(r.audit_id)}">Permalink</a>
+            <a class="chip" href="/audits/${esc(r.audit_id)}" target="_blank">Raw JSON</a>
+          </div>
+        </div>
+      </details>
+    </div>`;
+  $("#result").classList.remove("hidden");
+  $("#dl").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: "application/json" })); a.download = `airlock-${r.audit_id}.json`; a.click(); };
 }
 
-async function showList(){
+async function loadRecent() {
   const rows = await (await fetch("/audits")).json();
-  $("#list-body").innerHTML = rows.map(r=>`<tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="location.hash='#/audits/${r.audit_id}'">
-    <td class="px-4 py-2"><span class="grade-${r.grade} rounded px-2 py-0.5 font-semibold">${r.grade}</span> ${r.score}</td>
-    <td class="px-4 py-2"><div>${esc(r.target_label||"")}</div><div class="mono text-xs text-slate-500">${esc(r.url)}</div></td>
-    <td class="px-4 py-2">${esc(r.server_name||"")}</td><td class="px-4 py-2 text-slate-500">${esc((r.finished_at||"").replace("T"," ").slice(0,19))}</td></tr>`).join("")
-    || `<tr><td class="px-4 py-3 text-slate-500" colspan="4">No assessments yet.</td></tr>`;
+  $("#recent").innerHTML = rows.slice(0, 6).map(x => `
+    <a href="#/scan/${esc(x.audit_id)}" class="card p-5 g-${x.grade} hover:-translate-y-0.5 transition block">
+      <div class="flex items-center gap-3"><span class="grade-badge w-11 h-11 rounded-xl grid place-items-center text-xl font-extrabold">${x.grade}</span>
+        <div class="min-w-0"><div class="font-semibold truncate">${esc(x.target_label || x.server_name || "Custom server")}</div><div class="mono text-xs text-slate-500 truncate">${esc(x.url)}</div></div></div>
+      <div class="text-xs text-slate-500 mt-3">Score ${x.score}/100 · ${esc((x.finished_at || "").replace("T", " ").slice(0, 16))}</div>
+    </a>`).join("") || `<div class="text-slate-500 text-sm col-span-full text-center">No scans yet. Try one above.</div>`;
 }
 
-function route(){
-  const h = location.hash || "#/new";
-  const isList = h.startsWith("#/list");
-  $("#view-new").classList.toggle("hidden", isList); $("#view-list").classList.toggle("hidden", !isList);
-  document.querySelectorAll("[data-nav]").forEach(a=>a.classList.toggle("bg-indigo-600", a.dataset.nav===(isList?"list":"new")));
-  if(isList) showList();
-  const m = h.match(/^#\/audits\/([a-z0-9]+)/); if(m && m[1]!==report.audit_id) watch(m[1]);
+function route() {
+  const m = (location.hash || "").match(/^#\/scan\/([a-z0-9]+)/);
+  if (m) { if (!report || report.audit_id !== m[1]) watch(m[1]); }
+  else { $("#scan").classList.add("hidden"); $("#result").classList.add("hidden"); if (es) es.close(); report = null; }
 }
-$("#start").onclick = start;
-$("#download").onclick = ()=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:"application/json"})); a.download=`airlock-${report.audit_id||"report"}.json`; a.click(); };
 window.addEventListener("hashchange", route);
-loadTargets().then(()=>{ render(); route(); });
+init();
 </script>
 </body>
 </html>

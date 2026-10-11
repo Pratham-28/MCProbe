@@ -108,6 +108,11 @@ async def test_model_findings_that_duplicate_automatic_ones_are_dropped():
         FakeReply(tool_calls=[tc("record_finding", {
             "category": "secret_leak", "severity": "critical", "title": "AWS key exposed",
             "detail": "d", "location": "get_config tool response", "evidence": "AKIA..."})]),
+        # sibling category (prompt_injection vs the automatic response_injection) on the same response -> duplicate
+        FakeReply(tool_calls=[tc("call_tool", {"name": "read_notes", "arguments": {"note_id": "1"}})]),
+        FakeReply(tool_calls=[tc("record_finding", {
+            "category": "prompt_injection", "severity": "critical", "title": "Note hijacks agent",
+            "detail": "d", "location": "read_notes tool response"})]),
         # new category for the same tool -> kept, with location normalised to our scheme
         FakeReply(tool_calls=[tc("record_finding", {
             "category": "data_exfiltration", "severity": "high", "title": "Config reveals region",
@@ -120,6 +125,8 @@ async def test_model_findings_that_duplicate_automatic_ones_are_dropped():
         findings, calls = await run_probe(llm, conn, inv, lambda e, d: None)
     secret = [f for f in findings if f.category == "secret_leak"]
     assert len(secret) == 1 and secret[0].title.startswith("Response from 'get_config'")
+    assert not any(f.category == "prompt_injection" for f in findings)
+    assert len([f for f in findings if f.category == "response_injection"]) == 1
     kept = next(f for f in findings if f.category == "data_exfiltration")
     assert kept.location == "response:get_config"
     tool_replies = [json.loads(m["content"]) for m in llm.calls[-1] if m.get("role") == "tool"]
