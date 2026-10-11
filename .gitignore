@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .superpowers/
+uv.lock.bak
+.ruff_cache/
