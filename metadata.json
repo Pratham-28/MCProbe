@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4N58D3WD3AC2YFPE34A396B",
+  "strategy": "manual-commit",
+  "branch": "iteration-one",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "README.md",
+    "app/frameworks.py",
+    "app/orchestrator.py",
+    "app/prober.py",
+    "app/scoring.py",
+    "app/store.py",
+    "docs/ui-landing.png",
+    "docs/ui-verdict.png",
+    "hackathon.md",
+    "static/index.html",
+    "tests/test_api.py",
+    "tests/test_frameworks.py",
+    "tests/test_orchestrator.py",
+    "tests/test_prober.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 354,
+    "cache_creation_tokens": 35286,
+    "cache_read_tokens": 5024696,
+    "output_tokens": 27085,
+    "api_call_count": 12
+  }
+}
