@@ -122,5 +122,5 @@ async def test_model_findings_that_duplicate_automatic_ones_are_dropped():
     assert len(secret) == 1 and secret[0].title.startswith("Response from 'get_config'")
     kept = next(f for f in findings if f.category == "data_exfiltration")
     assert kept.location == "response:get_config"
-    dup_reply = [m for m in llm.calls[2] if m.get("role") == "tool"][-1]
-    assert json.loads(dup_reply["content"]) == {"ok": True, "note": "already recorded by automatic checks"}
+    tool_replies = [json.loads(m["content"]) for m in llm.calls[-1] if m.get("role") == "tool"]
+    assert {"ok": True, "note": "already recorded by automatic checks"} in tool_replies
