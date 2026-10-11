@@ -1,0 +1,2 @@
+Animaton is not enaough clean and not alighning with our idea. What we are doing and what we are showing. Lets rmeove the animation for now or put under the Feature falg or disable  for now.
+Tell me how to deploy this
