@@ -116,6 +116,29 @@ def check_response(tool_name: str, text: str) -> list[Finding]:
     return out
 
 
+def _tool_named_in(text: str, tool_names) -> str | None:
+    low = text.lower()
+    hits = [n for n in tool_names if n.lower() in low]
+    return max(hits, key=len) if hits else None
+
+
+def _normalise_location(fi: Finding, by_name: dict[str, ToolInfo]) -> None:
+    """Model-written locations are free text; map them onto our 'response:<tool>' / 'tool:<tool>' scheme."""
+    if fi.location.startswith(("tool:", "response:", "server.")):
+        return
+    tool = _tool_named_in(fi.location + " " + fi.title, by_name)
+    if tool:
+        kind = "tool" if "description" in fi.location.lower() else "response"
+        fi.location = f"{kind}:{tool}"
+
+
+def _duplicates_existing(fi: Finding, existing: list[Finding]) -> bool:
+    """Same category about the same tool as something already recorded -> duplicate."""
+    def tool_of(loc: str) -> str:
+        return loc.split(":", 1)[1] if ":" in loc else loc
+    return any(e.category == fi.category and tool_of(e.location) == tool_of(fi.location) for e in existing)
+
+
 def _tool_summary(inv: Inventory) -> str:
     # Deliberately does not reveal which tools the gate will refuse: the refusal itself is
     # the observable "action failed, agent recovered" behaviour.
@@ -168,9 +191,13 @@ async def run_probe(llm, conn, inv: Inventory, emit: Emit) -> tuple[list[Finding
                 try:
                     fi = Finding(phase="probe", source="prober", **{k: v for k, v in args.items()
                                  if k in ("category", "severity", "title", "detail", "location", "evidence", "recommendation")})
-                    findings.append(fi)
-                    emit("finding", fi.model_dump(mode="json"))
-                    result = {"ok": True}
+                    _normalise_location(fi, by_name)
+                    if _duplicates_existing(fi, findings):
+                        result = {"ok": True, "note": "already recorded by automatic checks"}
+                    else:
+                        findings.append(fi)
+                        emit("finding", fi.model_dump(mode="json"))
+                        result = {"ok": True}
                 except Exception as e:
                     result = {"ok": False, "error": f"invalid finding: {e}"}
 

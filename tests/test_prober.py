@@ -99,3 +99,28 @@ async def test_probe_handles_plain_text_reply_as_finish():
         inv = await conn.inventory()
         findings, calls = await run_probe(llm, conn, inv, lambda e, d: None)
     assert calls == [] and findings == []
+
+
+async def test_model_findings_that_duplicate_automatic_ones_are_dropped():
+    script = [
+        FakeReply(tool_calls=[tc("call_tool", {"name": "get_config", "arguments": {}})]),
+        # same category + same tool as the automatic secret_leak finding -> duplicate
+        FakeReply(tool_calls=[tc("record_finding", {
+            "category": "secret_leak", "severity": "critical", "title": "AWS key exposed",
+            "detail": "d", "location": "get_config tool response", "evidence": "AKIA..."})]),
+        # new category for the same tool -> kept, with location normalised to our scheme
+        FakeReply(tool_calls=[tc("record_finding", {
+            "category": "data_exfiltration", "severity": "high", "title": "Config reveals region",
+            "detail": "d", "location": "response of get_config"})]),
+        FakeReply(tool_calls=[tc("finish", {"summary": "done"})]),
+    ]
+    llm = FakeLLM(script)
+    async with open_inproc(evil) as conn:
+        inv = await conn.inventory()
+        findings, calls = await run_probe(llm, conn, inv, lambda e, d: None)
+    secret = [f for f in findings if f.category == "secret_leak"]
+    assert len(secret) == 1 and secret[0].title.startswith("Response from 'get_config'")
+    kept = next(f for f in findings if f.category == "data_exfiltration")
+    assert kept.location == "response:get_config"
+    dup_reply = [m for m in llm.calls[2] if m.get("role") == "tool"][-1]
+    assert json.loads(dup_reply["content"]) == {"ok": True, "note": "already recorded by automatic checks"}
