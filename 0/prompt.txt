@@ -1,0 +1,36 @@
+what we can add in github repo as a variable to flip the flag ? do we need to all this after every commit to our main ?
+
+---
+
+added variable in repo then tell me the next steps
+
+---
+
+Oct 11 11:24:12 ip-10-0-32-184 uv[2150]: 2026-10-11 11:24:12,375 mcprobe.flags WARNING flag MCPROBE_LLM unavailable (HTTP 401); keeping last known value
+
+---
+
+<pasted_content id="a812">
+7:GITHUB_REPO=
+8:GITHUB_FLAG_TOKEN=
+9:GITHUB_REPO=Pratham-28/MCProbe
+10:REDACTED
+</pasted_content id="a812">
+
+---
+
+if I need to change the variable value then how this will work
+
+---
+
+Suggest me some MCP where we can create a quick token and validate that MCP with our tool
+
+---
+
+http://54.197.141.241/#/scan/5f7ffe5e5d54
+
+Canw e chang this URL to something menaingful in AWS
+
+---
+
+how to attache entire
