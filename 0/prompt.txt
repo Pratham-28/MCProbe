@@ -1,0 +1,35 @@
+Few suggestion ->
+1. Can we show reprot in tabular format 
+2. Tbaular format -> 
+Issue | Seveityt | Impact  | Evidence 
+3. For now lets stop the calling LLM API.  Maybe show the data directlu from stored respnse or something like that.
+4. give a button above result atble to download , share etc.
+5. if we can map vulenability against MITREATTACK or CVE then that will be great
+6. Can we put some video or some anmation at the start to show why our product is important
+
+---
+
+in third we can implement both
+add MITRE in table
+I am suggeting table. If you have soething itnresting to show findings suggest me but current appraoch was not good
+will opening aniamtion visible to the website viewers alos ?
+
+---
+
+<task-notification>
+<task-id>bhdn8y3wr</task-id>
+<tool-use-id>toolu_01U4CdavqMRxq9eUEPe5y2QA</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pyeole-personal-neatlogs-mcp-audit/7fbca266-6b95-49a5-b6e8-1f6ea559df1a/tasks/bhdn8y3wr.output</output-file>
+<status>failed</status>
+<summary>Background command "Write failing tests for replay, LLM-off deterministic probe, placeholder arguments, and finding references" failed with exit code 144</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bzd8zpd3p</task-id>
+<tool-use-id>toolu_011bCiQzQE7Z1UtcSDuyyUi4</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pyeole-personal-neatlogs-mcp-audit/7fbca266-6b95-49a5-b6e8-1f6ea559df1a/tasks/bzd8zpd3p.output</output-file>
+<status>failed</status>
+<summary>Background command "Inspect the hung test run, kill it, and run the non-orchestrator test files" failed with exit code 144</summary>
+</task-notification>
