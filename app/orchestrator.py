@@ -72,29 +72,48 @@ def _add(run: AuditRun, findings: list[Finding]) -> None:
         run.emit("finding", fi.model_dump(mode="json"))
 
 
+def _usage_delta(before: dict, after: dict) -> dict:
+    return {k: int(after.get(k, 0)) - int(before.get(k, 0)) for k in ("prompt_tokens", "completion_tokens", "calls")}
+
+
 async def run_audit(run: AuditRun, *, bearer_token: str | None, llm, connector: Connector, store: Store) -> Report:
     report = run.report
     report.model = getattr(llm, "model", "")
+    usage_before = dict(getattr(llm, "usage", {}) or {})
     with audit_context(report.audit_id):
         try:
-            await _run_phases(run, bearer_token, llm, connector)
-        except Exception as exc:  # last-resort guard: never leave a run hanging
-            log.exception("audit %s crashed", report.audit_id)
-            run.emit("error", {"message": flatten_error(exc)})
-        finally:
+            try:
+                await _run_phases(run, bearer_token, llm, connector)
+            except Exception as exc:  # last-resort guard: never leave a run hanging
+                log.exception("audit %s crashed", report.audit_id)
+                run.emit("error", {"message": flatten_error(exc)})
             t = _PhaseTimer(run, "report")
             apply_scoring(report)
-            if report.phase("connect").status == "failed":
-                report.score, report.grade = 0, "F"  # spec §12: unreachable server grades F
-            report.llm_usage = dict(getattr(llm, "usage", {}))
+            if report.phase("connect").status == "failed" or report.phase("discover").status == "failed":
+                report.score, report.grade = 0, "F"  # spec §12: a server we could not assess grades F
+            report.llm_usage = _usage_delta(usage_before, getattr(llm, "usage", {}) or {})
             report.finished_at = now()
-            store.save(report)
+            try:
+                store.save(report)
+            except Exception as exc:
+                log.exception("audit %s could not be persisted", report.audit_id)
+                run.emit("error", {"message": f"Report not saved: {flatten_error(exc)}"})
             t.set("completed", f"Grade {report.grade}, score {report.score}, {len(report.findings)} findings")
+        finally:
             run.emit("done", report.model_dump(mode="json"))
             run.done = True
             run.close()
-            flush_traces()
+            try:
+                flush_traces()
+            except Exception:
+                log.exception("neatlogs flush failed")
     return report
+
+
+def _skip_rest(run: AuditRun, phases: tuple[str, ...]) -> None:
+    for p in phases:
+        run.report.phase(p).status = "skipped"  # type: ignore[arg-type]
+        run.emit("phase", run.report.phase(p).model_dump(mode="json"))
 
 
 async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: Connector) -> None:
@@ -106,9 +125,7 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
     except Exception as exc:
         msg = str(exc) if isinstance(exc, ConnectionFailed) else flatten_error(exc)
         connect.set("failed", msg[:300])
-        for p in ("discover", "analyze", "probe"):
-            report.phase(p).status = "skipped"
-            run.emit("phase", report.phase(p).model_dump(mode="json"))
+        _skip_rest(run, ("discover", "analyze", "probe"))
         _add(run, [Finding(category="connectivity", severity="critical", title="Could not connect to the MCP server",
                            detail=msg[:1000], location="server.url", evidence=report.url,
                            recommendation="Check the URL, transport (Streamable HTTP or SSE), and any required token.",
@@ -118,22 +135,38 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
         connect.set("completed", f"Connected via {conn.transport}")
 
         discover = _PhaseTimer(run, "discover")
-        inv = await conn.inventory()
+        try:
+            inv = await conn.inventory()
+        except Exception as exc:
+            msg = flatten_error(exc)
+            discover.set("failed", msg[:300])
+            _skip_rest(run, ("analyze", "probe"))
+            _add(run, [Finding(category="connectivity", severity="critical", title="Could not read the server's tool list",
+                               detail=msg[:1000], location="server.tools", evidence=report.url,
+                               recommendation="The server connected but its tools/list response could not be processed; "
+                                              "check that it speaks a supported MCP protocol version.",
+                               phase="discover", source="static")])
+            return
         report.inventory = inv
         run.emit("log", {"phase": "discover", "message": f"Found {len(inv.tools)} tools, {len(inv.prompts)} prompts, {len(inv.resources)} resources"})
         discover.set("completed", f"{len(inv.tools)} tools, {len(inv.prompts)} prompts, {len(inv.resources)} resources, {inv.total_tokens} tokens")
 
         analyze = _PhaseTimer(run, "analyze")
-        static = run_static_checks(inv, report.url)
-        _add(run, static)
-        run.emit("log", {"phase": "analyze", "message": f"Static checks: {len(static)} findings"})
+        static: list[Finding] = []
         judge_note = ""
+        try:
+            static = run_static_checks(inv, report.url)
+            _add(run, static)
+            run.emit("log", {"phase": "analyze", "message": f"Static checks: {len(static)} findings"})
+        except Exception as exc:
+            judge_note = f"; static checks failed: {flatten_error(exc)[:120]}"
+            run.emit("log", {"phase": "analyze", "message": f"Static checks failed: {flatten_error(exc)[:200]}"})
         try:
             judged = await run_judge(llm, inv)
             _add(run, judged)
             run.emit("log", {"phase": "analyze", "message": f"LLM judge: {len(judged)} findings"})
         except Exception as exc:
-            judge_note = f"; judge failed: {flatten_error(exc)[:120]}"
+            judge_note += f"; judge failed: {flatten_error(exc)[:120]}"
             run.emit("log", {"phase": "analyze", "message": f"LLM judge failed: {flatten_error(exc)[:200]}"})
         analyze.set("completed", f"{len(static)} static findings{judge_note}")
 

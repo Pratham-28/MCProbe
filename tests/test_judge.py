@@ -61,3 +61,19 @@ async def test_judge_truncates_huge_inventory():
     llm = FakeLLM([FakeReply(content=json.dumps({"tools": [], "instructions": {"risk": "none", "reasons": []}}))])
     await run_judge(llm, big)
     assert len(llm.calls[0][-1]["content"]) < 20 * 1500 * 5
+
+
+async def test_judge_falls_back_to_plain_mode_when_json_mode_is_rejected():
+    import httpx
+    import openai
+
+    class RejectsJsonMode(FakeLLM):
+        async def chat(self, messages, *, json_mode=False, **kw):
+            if json_mode:
+                self.usage["calls"] += 1
+                raise openai.BadRequestError("response_format not supported",
+                                             response=httpx.Response(400, request=httpx.Request("POST", "http://x")), body=None)
+            return await super().chat(messages, json_mode=json_mode, **kw)
+
+    llm = RejectsJsonMode([FakeReply(content=GOOD)])
+    assert len(await run_judge(llm, INV)) == 1

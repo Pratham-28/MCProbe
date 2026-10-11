@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import re
 
+from openai import BadRequestError
+
 from app.models import Finding, Inventory
 from app.tokens import count_tokens
 
@@ -64,8 +66,15 @@ async def run_judge(llm, inv: Inventory) -> list[Finding]:
 
     data = None
     last_err = ""
+    json_mode = True
     for _attempt in range(2):
-        msg = await llm.chat(messages, json_mode=True, max_tokens=3000)
+        try:
+            msg = await llm.chat(messages, json_mode=json_mode, max_tokens=3000)
+        except BadRequestError:
+            if not json_mode:
+                raise
+            json_mode = False  # proxy/model rejected response_format; the parser tolerates prose-wrapped JSON
+            msg = await llm.chat(messages, json_mode=False, max_tokens=3000)
         try:
             data = parse_judge_json(msg.content or "")
             break

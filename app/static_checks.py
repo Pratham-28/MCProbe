@@ -28,12 +28,13 @@ _STRONG = [re.compile(p, re.I | re.S) for p in STRONG_INJECTION]
 _WEAK = [re.compile(p, re.I | re.S) for p in WEAK_INJECTION]
 
 CRITICAL_WORDS = ["exec", "shell", "eval", "command", "sudo"]
-DANGEROUS_WORDS = CRITICAL_WORDS + [
-    "delete", "remove", "rm", "write_file", "upload", "credential",
-    "password", "token", "secret", "drop", "kill",
-]
-# Used by the prober gate: never call tools matching these.
-DESTRUCTIVE_WORDS = DANGEROUS_WORDS + [
+ACTION_WORDS = ["delete", "remove", "rm", "write_file", "upload", "drop", "kill"]
+SENSITIVE_NOUNS = ["credential", "password", "token", "secret"]
+# Static check: anything powerful or sensitive gets an excessive_permissions finding.
+DANGEROUS_WORDS = CRITICAL_WORDS + ACTION_WORDS + SENSITIVE_NOUNS
+# Prober gate: never *call* tools that act on the world. Sensitive nouns are intentionally
+# absent: reading get_token_count or get_config is how the prober observes secret leaks.
+DESTRUCTIVE_WORDS = CRITICAL_WORDS + ACTION_WORDS + [
     "send", "email", "pay", "transfer", "write", "create", "update", "post", "purge",
 ]
 

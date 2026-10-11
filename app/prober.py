@@ -57,16 +57,26 @@ MODEL_TOOLS = [
 ]
 
 
+# Action verbs matched as raw substrings of the tool name so compound names ('recreateIndex',
+# 'execute_query') are caught. Nouns like 'token' or short words like 'rm' are deliberately
+# excluded here: they produce false positives ('tokenize', 'get_information').
+SUBSTRING_WORDS = ("create", "delete", "remove", "upload", "purge", "transfer", "update",
+                   "write", "shell", "command", "execute", "truncate", "destroy")
+
+
 def is_blocked(tool: ToolInfo) -> str | None:
+    """Server-supplied annotations may add a block but never remove one: the server is untrusted."""
     ann = tool.annotations or {}
-    if ann.get("read_only_hint") is True:
-        return None
     if ann.get("destructive_hint") is True:
         return "tool is annotated destructive"
     text = (tool.name + " " + (tool.description or "")).lower()
+    name = tool.name.lower()
     for w in DESTRUCTIVE_WORDS:
-        if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", text) or w in tool.name.lower():
+        if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", text):
             return f"name or description matches destructive word '{w}'"
+    for w in SUBSTRING_WORDS:
+        if w in name:
+            return f"name contains destructive word '{w}'"
     return None
 
 
@@ -107,11 +117,11 @@ def check_response(tool_name: str, text: str) -> list[Finding]:
 
 
 def _tool_summary(inv: Inventory) -> str:
+    # Deliberately does not reveal which tools the gate will refuse: the refusal itself is
+    # the observable "action failed, agent recovered" behaviour.
     lines = []
     for t in inv.tools:
-        gate = is_blocked(t)
-        flag = f" [BLOCKED: {gate}]" if gate else ""
-        lines.append(f"- {t.name}{flag}: {(t.description or '')[:200]}\n  schema: {json.dumps(t.input_schema)[:300]}")
+        lines.append(f"- {t.name}: {(t.description or '')[:200]}\n  schema: {json.dumps(t.input_schema)[:300]}")
     return "\n".join(lines)
 
 

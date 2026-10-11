@@ -93,3 +93,60 @@ def test_store_roundtrip_and_listing(tmp_path: Path):
     s.save(r1); s.save(r2)
     assert s.load(r1.audit_id).url == "u1" and s.load("missing") is None
     assert [x["url"] for x in s.list_summaries()] == ["u2", "u1"]
+
+
+# --- fixes from final review ---
+from contextlib import asynccontextmanager
+
+from app.mcp_client import open_inproc
+
+
+def failing_inventory_connector():
+    @asynccontextmanager
+    async def connector(url, token):
+        async with open_inproc(clean) as conn:
+            async def boom():
+                raise RuntimeError("schema exploded")
+            conn.inventory = boom
+            yield conn
+    return connector
+
+
+async def test_discover_failure_marks_phase_failed_and_grades_f(tmp_path: Path):
+    run = AuditRun(Report(url=CLEAN_URL))
+    report = await run_audit(run, bearer_token=None, llm=FakeLLM(), connector=failing_inventory_connector(), store=Store(tmp_path))
+    assert report.phase("discover").status == "failed" and "schema exploded" in report.phase("discover").detail
+    assert {report.phase("analyze").status, report.phase("probe").status} == {"skipped"}
+    assert report.grade == "F" and report.score == 0
+    assert any(f.category == "connectivity" and f.severity == "critical" for f in report.findings)
+    assert run.done and run.events[-1]["event"] == "done"
+
+
+async def test_llm_usage_is_per_audit_not_cumulative(tmp_path: Path):
+    llm = FakeLLM([judge_ok(["add", "get_time"]), FakeReply(tool_calls=[tc("finish", {"summary": "a"})]),
+                   judge_ok(["add", "get_time"]), FakeReply(tool_calls=[tc("finish", {"summary": "b"})])])
+    r1 = await run_audit(AuditRun(Report(url=CLEAN_URL)), bearer_token=None, llm=llm, connector=CONNECTOR, store=Store(tmp_path))
+    r2 = await run_audit(AuditRun(Report(url=CLEAN_URL)), bearer_token=None, llm=llm, connector=CONNECTOR, store=Store(tmp_path))
+    assert r1.llm_usage["calls"] == 2 and r2.llm_usage["calls"] == 2
+
+
+class BrokenStore(Store):
+    def save(self, report):
+        raise OSError("disk full")
+
+
+async def test_store_failure_still_finishes_run_and_closes_subscribers(tmp_path: Path):
+    llm = FakeLLM([judge_ok(["add", "get_time"]), FakeReply(tool_calls=[tc("finish", {"summary": "a"})])])
+    run = AuditRun(Report(url=CLEAN_URL))
+    got = []
+
+    async def consume():
+        async for ev in run.subscribe():
+            got.append(ev["event"])
+
+    task = asyncio.create_task(consume())
+    await asyncio.sleep(0)
+    report = await run_audit(run, bearer_token=None, llm=llm, connector=CONNECTOR, store=BrokenStore(tmp_path))
+    await asyncio.wait_for(task, 2)
+    assert run.done and got[-1] == "done" and "error" in got
+    assert report.grade == "A"

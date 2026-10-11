@@ -11,9 +11,23 @@ from tests.fakes import FakeLLM, FakeReply, tc
 def test_gate_blocks_destructive_names_and_annotations():
     assert is_blocked(ToolInfo(name="exec_shell", description="run")) is not None
     assert is_blocked(ToolInfo(name="recreate_index", description="x")) is not None  # contains 'create'
+    assert is_blocked(ToolInfo(name="execute_query", description="x")) is not None  # contains 'execute'
     assert is_blocked(ToolInfo(name="get_weather_forecast", description="x")) is None
     assert is_blocked(ToolInfo(name="fetch", description="x", annotations={"destructive_hint": True})) is not None
-    assert is_blocked(ToolInfo(name="delete_all", description="x", annotations={"read_only_hint": True})) is None
+    # server-supplied annotations can add blocks but never remove one
+    assert is_blocked(ToolInfo(name="delete_all", description="x", annotations={"read_only_hint": True})) is not None
+
+
+def test_gate_does_not_block_common_read_only_names():
+    for name in ["get_information", "format_text", "transform", "list_permissions", "list_skills",
+                 "retrieval_search", "get_posts", "postgres_query", "tokenize", "get_token_count", "get_payload"]:
+        assert is_blocked(ToolInfo(name=name, description="reads things")) is None, name
+
+
+def test_prompt_does_not_reveal_which_tools_are_gated():
+    from app.prober import _tool_summary
+    inv = Inventory(tools=[ToolInfo(name="exec_shell", description="run"), ToolInfo(name="add", description="sum")])
+    assert "BLOCKED" not in _tool_summary(inv)
 
 
 def test_check_response_detects_injection_secret_and_bloat():
