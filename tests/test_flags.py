@@ -13,7 +13,7 @@ def test_parse_on_off():
 
 def make_flag(handler, **kw):
     transport = httpx.MockTransport(handler)
-    return GitHubVariableFlag(repo="me/airlock", token="t", name="AIRLOCK_LLM",
+    return GitHubVariableFlag(repo="me/mcprobe", token="t", name="MCPROBE_LLM",
                               client=httpx.AsyncClient(transport=transport), **kw)
 
 
@@ -22,11 +22,11 @@ async def test_fetch_reads_repository_variable():
 
     def handler(req):
         seen["url"] = str(req.url); seen["auth"] = req.headers.get("authorization")
-        return httpx.Response(200, json={"name": "AIRLOCK_LLM", "value": "off"})
+        return httpx.Response(200, json={"name": "MCPROBE_LLM", "value": "off"})
 
     flag = make_flag(handler)
     assert await flag.fetch() is False
-    assert seen["url"] == "https://api.github.com/repos/me/airlock/actions/variables/AIRLOCK_LLM"
+    assert seen["url"] == "https://api.github.com/repos/me/mcprobe/actions/variables/MCPROBE_LLM"
     assert seen["auth"] == "Bearer t"
 
 

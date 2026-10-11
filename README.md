@@ -1,19 +1,19 @@
-# Airlock — MCP Security Assessment
+# MCProbe — MCP Security Assessment
 
-Paste an MCP server URL; Airlock connects, inventories tools/prompts/resources,
+Paste an MCP server URL; MCProbe connects, inventories tools/prompts/resources,
 runs static and LLM checks, safely probes tools behind a code gate, detects rug
 pulls, and grades the server A–F. Built for neatHack 2026 (team SRP).
 
-![Airlock landing](docs/ui-landing.png)
+![MCProbe landing](docs/ui-landing.png)
 
-![Airlock verdict for the evil fixture](docs/ui-verdict.png)
+![MCProbe verdict for the evil fixture](docs/ui-verdict.png)
 
 ## What you get
 - A grade (A–F), a one-sentence verdict, and a findings table: Issue · Severity · Impact · Framework · Evidence.
 - Every finding mapped to **MITRE ATLAS**, **OWASP LLM Top 10 (2025)** and **MITRE ATT&CK** where applicable.
 - Download as JSON or CSV, copy a share link, print to PDF.
 - Replays: scanning a URL that already has a report shows it instantly; "Re-scan live" forces a fresh run.
-- `AIRLOCK_LLM=off` runs with no LLM at all: static checks plus a deterministic probe of gate-approved tools.
+- `MCPROBE_LLM=off` runs with no LLM at all: static checks plus a deterministic probe of gate-approved tools.
 
 ## Run
     cp .env.example .env   # fill LITELLM_API_KEY and NEATLOGS_API_KEY
@@ -31,31 +31,31 @@ TCP 80 (and 22 for you). Then on the instance:
 
     curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/deploy/setup_ec2.sh \
       | REPO_URL=https://github.com/<owner>/<repo>.git bash
-    nano /opt/airlock/.env          # LITELLM_API_KEY, NEATLOGS_API_KEY, AIRLOCK_MODEL
-    sudo systemctl restart airlock
+    nano /opt/mcprobe/.env          # LITELLM_API_KEY, NEATLOGS_API_KEY, MCPROBE_MODEL
+    sudo systemctl restart mcprobe
 
-Open `http://<public-ip>/`. Logs: `journalctl -u airlock -f`. The fixture servers run as a
-second unit, `airlock-fixtures`.
+Open `http://<public-ip>/`. Logs: `journalctl -u mcprobe -f`. The fixture servers run as a
+second unit, `mcprobe-fixtures`.
 
 ### Switching AI analysis on and off while live (GitHub feature flag)
 Deterministic checks always run. The LLM judge and the probing agent are controlled from
 GitHub, not from the UI:
 
 1. In the repo: Settings → Secrets and variables → Actions → Variables → **New repository
-   variable**: name `AIRLOCK_LLM`, value `on` or `off`.
+   variable**: name `MCPROBE_LLM`, value `on` or `off`.
 2. Create a fine-grained personal access token for that repo with **Variables: Read-only**
    (classic tokens: `repo` scope).
 3. On the server, in `.env`:
 
        GITHUB_REPO=<owner>/<repo>
        GITHUB_FLAG_TOKEN=<token>
-       # optional: GITHUB_FLAG_NAME=AIRLOCK_LLM  GITHUB_FLAG_INTERVAL=60
+       # optional: GITHUB_FLAG_NAME=MCPROBE_LLM  GITHUB_FLAG_INTERVAL=60
 
-   then `sudo systemctl restart airlock` once.
+   then `sudo systemctl restart mcprobe` once.
 
 The server polls the variable every 60 s; changing it in GitHub takes effect on the next
 scan with no redeploy. The top-bar badge shows the current mode read-only. Without
-`GITHUB_REPO`, the `AIRLOCK_LLM` env var is the default. Keep it `off` for the public link
+`GITHUB_REPO`, the `MCPROBE_LLM` env var is the default. Keep it `off` for the public link
 and flip to `on` while presenting, so strangers cannot spend the shared LLM budget.
 
 ## Test

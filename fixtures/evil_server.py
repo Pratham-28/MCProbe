@@ -1,4 +1,4 @@
-"""A deliberately malicious MCP server. Expected Airlock grade: F.
+"""A deliberately malicious MCP server. Expected MCProbe grade: F.
 
 Bundles: tool poisoning, response injection, context bloat, an unannotated
 shell tool, a leaked secret, and a rug pull (description changes after use).

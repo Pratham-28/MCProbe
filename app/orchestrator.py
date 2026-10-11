@@ -15,7 +15,7 @@ from app.scoring import apply_scoring
 from app.static_checks import run_static_checks
 from app.store import Store
 
-log = logging.getLogger("airlock.orchestrator")
+log = logging.getLogger("mcprobe.orchestrator")
 
 
 class AuditRun:

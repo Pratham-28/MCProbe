@@ -1,4 +1,4 @@
-"""A well-behaved MCP server. Expected Airlock grade: A."""
+"""A well-behaved MCP server. Expected MCProbe grade: A."""
 from datetime import datetime, timezone
 
 from mcp.server.mcpserver import MCPServer

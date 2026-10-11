@@ -34,7 +34,7 @@ async def wait_done(app, audit_id):
 
 async def test_index_and_targets(client):
     c, _ = client
-    r = await c.get("/"); assert r.status_code == 200 and "Airlock" in r.text
+    r = await c.get("/"); assert r.status_code == 200 and "MCProbe" in r.text
     assert 'id="url-input"' in r.text and "EventSource" in r.text and "Technical details" in r.text
     assert 'id="findings-table"' in r.text and "dl-csv" in r.text and 'class="story' in r.text and 'id="llm-toggle"' in r.text
     r = await c.get("/targets"); assert r.status_code == 200 and r.json()[0]["id"] == "fixture-clean"
@@ -94,7 +94,7 @@ async def test_replay_returns_existing_report_for_same_url(client):
 
 
 async def test_llm_off_env_runs_without_key(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIRLOCK_LLM", "off")
+    monkeypatch.setenv("MCPROBE_LLM", "off")
     monkeypatch.delenv("LITELLM_API_KEY", raising=False)
     app = create_app(connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path))
     c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
@@ -114,7 +114,7 @@ async def test_whitepaper_page(client):
 
 
 async def test_settings_is_read_only_and_env_sets_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("AIRLOCK_LLM", "off")
+    monkeypatch.setenv("MCPROBE_LLM", "off")
     app = create_app(connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path))
     c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
     assert (await c.get("/settings")).json() == {"llm_enabled": False, "source": "env"}
@@ -123,21 +123,21 @@ async def test_settings_is_read_only_and_env_sets_default(tmp_path, monkeypatch)
 
 
 async def test_github_variable_flag_drives_llm_mode(tmp_path, monkeypatch):
-    monkeypatch.delenv("AIRLOCK_LLM", raising=False)
+    monkeypatch.delenv("MCPROBE_LLM", raising=False)
     values = ["off", "off", "on"]
 
     def handler(req):
         return httpx.Response(200, json={"value": values.pop(0) if values else "on"})
 
     from app.flags import GitHubVariableFlag
-    flag = GitHubVariableFlag(repo="me/airlock", token="t", interval=0.05,
+    flag = GitHubVariableFlag(repo="me/mcprobe", token="t", interval=0.05,
                               client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     llm = FakeLLM([judge_ok(), FakeReply(tool_calls=[tc("finish", {"summary": "ok"})])])
     app = create_app(llm=llm, connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path), flag=flag)
     c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
     async with app.router.lifespan_context(app):
         await asyncio.sleep(0.02)
-        assert (await c.get("/settings")).json() == {"llm_enabled": False, "source": "github:me/airlock"}
+        assert (await c.get("/settings")).json() == {"llm_enabled": False, "source": "github:me/mcprobe"}
         audit_id = (await c.post("/audits", json={"url": CLEAN_URL, "force": True})).json()["audit_id"]
         await wait_done(app, audit_id)
         assert (await c.get(f"/audits/{audit_id}")).json()["model"] == "none (LLM disabled)"

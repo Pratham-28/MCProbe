@@ -44,7 +44,7 @@ def test_build_llm_requires_key(monkeypatch):
 def test_build_llm_without_neatlogs(monkeypatch):
     monkeypatch.setenv("LITELLM_API_KEY", "k")
     monkeypatch.delenv("NEATLOGS_API_KEY", raising=False)
-    monkeypatch.setenv("AIRLOCK_MODEL", "claude-haiku")
+    monkeypatch.setenv("MCPROBE_MODEL", "claude-haiku")
     llm = build_llm()
     assert llm.model == "claude-haiku"
 

@@ -1,4 +1,4 @@
-"""Map Airlock finding categories onto MITRE ATLAS, OWASP LLM Top 10 and MITRE ATT&CK.
+"""Map MCProbe finding categories onto MITRE ATLAS, OWASP LLM Top 10 and MITRE ATT&CK.
 
 IDs verified against dist/ATLAS.yaml (mitre-atlas/atlas-data), genai.owasp.org/llm-top-10
 and attack.mitre.org on 2026-10-11.

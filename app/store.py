@@ -10,7 +10,7 @@ from app.models import Report
 
 class Store:
     def __init__(self, data_dir: Path | str | None = None):
-        self.dir = Path(data_dir or os.environ.get("AIRLOCK_DATA_DIR", "data/audits"))
+        self.dir = Path(data_dir or os.environ.get("MCPROBE_DATA_DIR", "data/audits"))
         self.dir.mkdir(parents=True, exist_ok=True)
 
     def path(self, audit_id: str) -> Path:

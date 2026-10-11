@@ -1,7 +1,7 @@
 """Remote feature flag: read a GitHub Actions *repository variable* and poll it.
 
 Operators flip AI analysis on or off from GitHub (Settings → Secrets and variables →
-Actions → Variables → AIRLOCK_LLM = on|off). No redeploy, nothing exposed in the UI.
+Actions → Variables → MCPROBE_LLM = on|off). No redeploy, nothing exposed in the UI.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 import httpx
 
-log = logging.getLogger("airlock.flags")
+log = logging.getLogger("mcprobe.flags")
 
 ON = {"on", "true", "1", "yes", "enabled"}
 OFF = {"off", "false", "0", "no", "disabled"}
@@ -29,7 +29,7 @@ def parse_on_off(value: str | None) -> bool | None:
 
 
 class GitHubVariableFlag:
-    def __init__(self, repo: str, token: str, name: str = "AIRLOCK_LLM", interval: float = 60.0,
+    def __init__(self, repo: str, token: str, name: str = "MCPROBE_LLM", interval: float = 60.0,
                  client: httpx.AsyncClient | None = None):
         self.repo, self.token, self.name, self.interval = repo, token, name, interval
         self.client = client or httpx.AsyncClient(timeout=10)

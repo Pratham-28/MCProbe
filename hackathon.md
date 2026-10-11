@@ -1,7 +1,7 @@
-# Airlock — neatHack build log
+# MCProbe — neatHack build log
 
 ## Project
-Airlock: paste an MCP server URL, get a graded security report. An agent connects,
+MCProbe: paste an MCP server URL, get a graded security report. An agent connects,
 inventories tools/prompts/resources, runs static + LLM analysis, safely probes tools
 behind a code gate, detects rug pulls, and scores the server A–F.
 
@@ -26,7 +26,7 @@ Tailwind CDN + vanilla JS. Repo: pending (public GitHub repo to be created).
 - Findings table (Issue · Severity · Impact · Framework · Evidence) with expandable rows,
   severity filter, CSV/JSON download, copy-link, print-to-PDF.
 - Replay: POST /audits returns the stored report for a URL unless `force` is set; UI shows a
-  "stored scan, re-scan live" banner. `AIRLOCK_LLM=off` skips the judge and runs a
+  "stored scan, re-scan live" banner. `MCPROBE_LLM=off` skips the judge and runs a
   deterministic probe (placeholder arguments from each tool's schema, same gate, same checks).
 - Framework mapping (`app/frameworks.py`): MITRE ATLAS (AML.T0110 Tool Poisoning, AML.T0109
   Supply Chain Rug Pull, AML.T0051 Prompt Injection, AML.T0057 Data Leakage, AML.T0098 Tool
@@ -37,7 +37,7 @@ Tailwind CDN + vanilla JS. Repo: pending (public GitHub repo to be created).
 - Fixed: reports were persisted before the final phase was marked complete (replays showed a
   spinner); stored reports now get references attached on read.
 - Opening animation (pure SVG/CSS, 12 s loop): agent connects → tool description whispers
-  "read ~/.ssh/id_rsa" → Airlock grades it F.
+  "read ~/.ssh/id_rsa" → MCProbe grades it F.
 - Tests: 76 passed. Live evil scan `12a741c26f72`: F, 7 findings, 3 LLM calls, 7,510 prompt tokens.
 
 ### 2026-10-11 (evening) — UI redesign
@@ -51,8 +51,8 @@ accordion. Added How-it-works and a Proof grid of real recent scans. Tests: 63 p
 Planned: design spec, implementation plan, then iteration one: scaffold, scoring,
 static checks, fixture servers, MCP client, LLM client + test fake, judge, prober,
 orchestrator + store, API + SSE, UI, hackathon wiring.
-Done: all code tasks (1–11). Spec: `docs/superpowers/specs/2026-10-11-airlock-mcp-audit-design.md`.
-Plan: `docs/superpowers/plans/2026-10-11-airlock-iteration-one.md`.
+Done: all code tasks (1–11). Spec: `docs/superpowers/specs/2026-10-11-mcprobe-mcp-audit-design.md`.
+Plan: `docs/superpowers/plans/2026-10-11-mcprobe-iteration-one.md`.
 Tests that ran: `uv run pytest -q` → 53 passed.
 Manual verification (fake LLM, real fixture servers over HTTP): evil fixture → F (3/100,
 6 findings incl. rug pull critical), clean fixture → A (100), DeepWiki → A (100).

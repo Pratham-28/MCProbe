@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 load_dotenv()
-log = logging.getLogger("airlock.llm")
+log = logging.getLogger("mcprobe.llm")
 
 DEFAULT_BASE_URL = "https://litellm.vision.aivar.app/v1"
 DEFAULT_MODEL = "claude-haiku"
@@ -49,14 +49,14 @@ def build_llm() -> LLM:
     if not key:
         raise RuntimeError("LITELLM_API_KEY is not set; copy .env.example to .env and fill it in")
     base_url = os.environ.get("LITELLM_BASE_URL", DEFAULT_BASE_URL)
-    model = os.environ.get("AIRLOCK_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("MCPROBE_MODEL", DEFAULT_MODEL)
     client: Any = AsyncOpenAI(api_key=key, base_url=base_url)
 
     nl_key = os.environ.get("NEATLOGS_API_KEY")
     if nl_key:
         import neatlogs
-        neatlogs.init(api_key=nl_key, workflow_name="airlock")
-        client = neatlogs.wrap(client, app="airlock", model=model)
+        neatlogs.init(api_key=nl_key, workflow_name="mcprobe")
+        client = neatlogs.wrap(client, app="mcprobe", model=model)
         _neatlogs_on = True
         log.info("neatlogs tracing enabled")
     else:

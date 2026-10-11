@@ -40,10 +40,10 @@ class AuditRequest(BaseModel):
 
 
 def _flag_from_env() -> GitHubVariableFlag | None:
-    """GITHUB_REPO=owner/name + GITHUB_FLAG_TOKEN turn on polling of the AIRLOCK_LLM repository variable."""
+    """GITHUB_REPO=owner/name + GITHUB_FLAG_TOKEN turn on polling of the MCPROBE_LLM repository variable."""
     repo, token = os.environ.get("GITHUB_REPO"), os.environ.get("GITHUB_FLAG_TOKEN")
     if repo and token:
-        return GitHubVariableFlag(repo=repo, token=token, name=os.environ.get("GITHUB_FLAG_NAME", "AIRLOCK_LLM"),
+        return GitHubVariableFlag(repo=repo, token=token, name=os.environ.get("GITHUB_FLAG_NAME", "MCPROBE_LLM"),
                                   interval=float(os.environ.get("GITHUB_FLAG_INTERVAL", "60")))
     return None
 
@@ -61,14 +61,14 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
             if poller:
                 poller.cancel()
 
-    app = FastAPI(title="Airlock", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="MCProbe", version="0.1.0", lifespan=lifespan)
     app.state.runs = {}
     app.state.tasks = set()
     app.state.store = store or Store()
     app.state.connector = connector or open_connection
     app.state.llm = llm
-    # AI analysis switch: the GitHub variable (if configured) overrides the AIRLOCK_LLM env default.
-    env_default = parse_on_off(os.environ.get("AIRLOCK_LLM"))
+    # AI analysis switch: the GitHub variable (if configured) overrides the MCPROBE_LLM env default.
+    env_default = parse_on_off(os.environ.get("MCPROBE_LLM"))
     app.state.llm_enabled = True if env_default is None else env_default
     app.state.flag_source = f"github:{flag.repo}" if flag else "env"
 
