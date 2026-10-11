@@ -39,6 +39,7 @@ class Finding(BaseModel):
     recommendation: str = ""
     phase: Phase
     source: Source
+    references: list[dict[str, str]] = Field(default_factory=list)  # {framework, id, name, url}
 
     def model_post_init(self, __context: Any) -> None:
         if len(self.evidence) > 500:

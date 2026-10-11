@@ -26,6 +26,20 @@ class Store:
             return None
         return Report.model_validate_json(p.read_text())
 
+    def latest_for_url(self, url: str) -> Report | None:
+        """Newest finished report for this URL, or None."""
+        best: Report | None = None
+        for p in self.dir.glob("*.json"):
+            try:
+                r = Report.model_validate_json(p.read_text())
+            except Exception:
+                continue
+            if r.url != url or r.finished_at is None:
+                continue
+            if best is None or r.finished_at > best.finished_at:
+                best = r
+        return best
+
     def list_summaries(self) -> list[dict]:
         reports: list[Report] = []
         for p in self.dir.glob("*.json"):

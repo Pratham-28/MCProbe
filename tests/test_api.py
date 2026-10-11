@@ -79,3 +79,26 @@ async def test_bearer_token_never_appears_in_report_or_events(client):
 async def test_bad_url_is_rejected(client):
     c, _ = client
     assert (await c.post("/audits", json={"url": "not a url"})).status_code == 422
+
+
+async def test_replay_returns_existing_report_for_same_url(client):
+    c, app = client
+    first = (await c.post("/audits", json={"url": CLEAN_URL})).json()["audit_id"]
+    await wait_done(app, first)
+    r = await c.post("/audits", json={"url": CLEAN_URL})
+    assert r.status_code == 200 and r.json() == {"audit_id": first, "replayed": True}
+    r = await c.post("/audits", json={"url": CLEAN_URL, "force": True})
+    assert r.status_code == 202 and r.json()["audit_id"] != first
+    await wait_done(app, r.json()["audit_id"])
+
+
+async def test_llm_off_env_runs_without_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("AIRLOCK_LLM", "off")
+    monkeypatch.delenv("LITELLM_API_KEY", raising=False)
+    app = create_app(connector=make_inproc_connector({CLEAN_URL: clean}), store=Store(tmp_path))
+    c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+    r = await c.post("/audits", json={"url": CLEAN_URL})
+    assert r.status_code == 202
+    await wait_done(app, r.json()["audit_id"])
+    body = (await c.get(f"/audits/{r.json()['audit_id']}")).json()
+    assert body["grade"] == "A" and body["model"] == "none (LLM disabled)"

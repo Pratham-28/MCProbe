@@ -10,7 +10,7 @@ from app.judge import run_judge
 from app.llm import audit_context, flush_traces
 from app.mcp_client import ConnectionFailed, Connector, flatten_error
 from app.models import Finding, Phase, Report, now
-from app.prober import run_probe
+from app.prober import run_probe, run_probe_deterministic
 from app.scoring import apply_scoring
 from app.static_checks import run_static_checks
 from app.store import Store
@@ -78,7 +78,7 @@ def _usage_delta(before: dict, after: dict) -> dict:
 
 async def run_audit(run: AuditRun, *, bearer_token: str | None, llm, connector: Connector, store: Store) -> Report:
     report = run.report
-    report.model = getattr(llm, "model", "")
+    report.model = getattr(llm, "model", "") if llm is not None else "none (LLM disabled)"
     usage_before = dict(getattr(llm, "usage", {}) or {})
     with audit_context(report.audit_id):
         try:
@@ -162,9 +162,13 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
             judge_note = f"; static checks failed: {flatten_error(exc)[:120]}"
             run.emit("log", {"phase": "analyze", "message": f"Static checks failed: {flatten_error(exc)[:200]}"})
         try:
-            judged = await run_judge(llm, inv)
-            _add(run, judged)
-            run.emit("log", {"phase": "analyze", "message": f"LLM judge: {len(judged)} findings"})
+            if llm is None:
+                judge_note += "; LLM disabled, judge skipped"
+                run.emit("log", {"phase": "analyze", "message": "LLM disabled: judge skipped"})
+            else:
+                judged = await run_judge(llm, inv)
+                _add(run, judged)
+                run.emit("log", {"phase": "analyze", "message": f"LLM judge: {len(judged)} findings"})
         except Exception as exc:
             judge_note += f"; judge failed: {flatten_error(exc)[:120]}"
             run.emit("log", {"phase": "analyze", "message": f"LLM judge failed: {flatten_error(exc)[:200]}"})
@@ -172,7 +176,11 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
 
         probe = _PhaseTimer(run, "probe")
         try:
-            pf, calls = await run_probe(llm, conn, inv, run.emit)
+            if llm is None:
+                run.emit("log", {"phase": "probe", "message": "LLM disabled: calling gate-approved tools with placeholder arguments"})
+                pf, calls = await run_probe_deterministic(conn, inv, run.emit)
+            else:
+                pf, calls = await run_probe(llm, conn, inv, run.emit)
             report.probe_calls = calls
             report.findings.extend(pf)  # already emitted by the prober
             probe.set("completed", f"{len(calls)} tool calls, {len(pf)} findings")

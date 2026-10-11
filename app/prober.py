@@ -139,6 +139,81 @@ def _duplicates_existing(fi: Finding, existing: list[Finding]) -> bool:
     return any(finding_key(e) == key for e in existing)
 
 
+def placeholder_arguments(schema: dict) -> dict:
+    """Harmless minimal arguments satisfying a JSON schema's declared properties."""
+    props = (schema or {}).get("properties") or {}
+    required = (schema or {}).get("required") or list(props)
+    out: dict = {}
+    for name in required:
+        spec = props.get(name) or {}
+        enum = spec.get("enum")
+        typ = spec.get("type")
+        if isinstance(typ, list):
+            typ = next((t for t in typ if t != "null"), None)
+        if enum:
+            out[name] = enum[0]
+        elif typ in ("integer", "number"):
+            out[name] = 1
+        elif typ == "boolean":
+            out[name] = False
+        elif typ == "array":
+            out[name] = []
+        elif typ == "object":
+            out[name] = {}
+        else:
+            out[name] = "test"
+    return out
+
+
+async def _rug_pull_check(conn, before: dict[str, str], findings: list[Finding], emit: Emit) -> None:
+    after = await conn.tool_fingerprints()
+    changed = sorted(n for n in before if n in after and before[n] != after[n])
+    missing = sorted(n for n in before if n not in after)
+    added = sorted(n for n in after if n not in before)
+    if changed or missing or added:
+        fi = Finding(
+            category="tool_poisoning", severity="critical",
+            title="Tool definitions changed after use (rug pull)",
+            detail="The server presented different tool definitions after tools were called. "
+                   f"Changed: {changed}; removed: {missing}; added: {added}.",
+            location="server.tools",
+            evidence=", ".join(changed + missing + added),
+            recommendation="Pin and verify tool definitions; refuse servers whose definitions drift.",
+            phase="probe", source="prober")
+        findings.append(fi)
+        emit("finding", fi.model_dump(mode="json"))
+
+
+async def run_probe_deterministic(conn, inv: Inventory, emit: Emit) -> tuple[list[Finding], list[ProbeCall]]:
+    """No-LLM probe: call every gate-approved tool once with placeholder arguments."""
+    findings: list[Finding] = []
+    calls: list[ProbeCall] = []
+    before = await conn.tool_fingerprints()
+    for t in inv.tools:
+        if len(calls) >= MAX_CALLS:
+            emit("log", {"phase": "probe", "message": f"Call cap of {MAX_CALLS} reached"})
+            break
+        reason = is_blocked(t)
+        if reason:
+            emit("log", {"phase": "probe", "message": f"Skipping {t.name}: {reason}"})
+            continue
+        arguments = placeholder_arguments(t.input_schema)
+        t0 = time.perf_counter()
+        ok, text = await conn.call_tool(t.name, arguments, timeout=CALL_TIMEOUT)
+        secs = round(time.perf_counter() - t0, 3)
+        hits = check_response(t.name, text) if ok else []
+        for fi in hits:
+            findings.append(fi)
+            emit("finding", fi.model_dump(mode="json"))
+        note = ("; ".join(h.title for h in hits)) if hits else ("" if ok else "Tool returned an error")
+        pc = ProbeCall(tool=t.name, arguments=arguments, ok=ok, response_excerpt=text[:500],
+                       response_tokens=count_tokens(text), seconds=secs, note=note)
+        calls.append(pc)
+        emit("probe_call", pc.model_dump(mode="json"))
+    await _rug_pull_check(conn, before, findings, emit)
+    return findings, calls
+
+
 def _tool_summary(inv: Inventory) -> str:
     # Deliberately does not reveal which tools the gate will refuse: the refusal itself is
     # the observable "action failed, agent recovered" behaviour.
@@ -239,20 +314,5 @@ async def run_probe(llm, conn, inv: Inventory, emit: Emit) -> tuple[list[Finding
         if finished:
             break
 
-    after = await conn.tool_fingerprints()
-    changed = sorted(n for n in before if n in after and before[n] != after[n])
-    missing = sorted(n for n in before if n not in after)
-    added = sorted(n for n in after if n not in before)
-    if changed or missing or added:
-        fi = Finding(
-            category="tool_poisoning", severity="critical",
-            title="Tool definitions changed after use (rug pull)",
-            detail="The server presented different tool definitions after tools were called. "
-                   f"Changed: {changed}; removed: {missing}; added: {added}.",
-            location="server.tools",
-            evidence=", ".join(changed + missing + added),
-            recommendation="Pin and verify tool definitions; refuse servers whose definitions drift.",
-            phase="probe", source="prober")
-        findings.append(fi)
-        emit("finding", fi.model_dump(mode="json"))
+    await _rug_pull_check(conn, before, findings, emit)
     return findings, calls

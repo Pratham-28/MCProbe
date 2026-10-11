@@ -131,3 +131,27 @@ async def test_model_findings_that_duplicate_automatic_ones_are_dropped():
     assert kept.location == "response:get_config"
     tool_replies = [json.loads(m["content"]) for m in llm.calls[-1] if m.get("role") == "tool"]
     assert {"ok": True, "note": "already recorded by automatic checks"} in tool_replies
+
+
+def test_placeholder_arguments_from_schema():
+    from app.prober import placeholder_arguments
+    schema = {"type": "object", "properties": {
+        "q": {"type": "string"}, "n": {"type": "integer"}, "x": {"type": "number"}, "flag": {"type": "boolean"},
+        "tags": {"type": "array"}, "opts": {"type": "object"}, "mode": {"type": "string", "enum": ["fast", "slow"]},
+        "optional": {"type": "string"}}, "required": ["q", "n", "x", "flag", "tags", "opts", "mode"]}
+    assert placeholder_arguments(schema) == {"q": "test", "n": 1, "x": 1, "flag": False, "tags": [], "opts": {}, "mode": "fast"}
+    assert placeholder_arguments({}) == {}
+    assert placeholder_arguments({"type": "object", "properties": {"a": {"type": "string"}}}) == {"a": "test"}  # fill optionals too when nothing is required
+
+
+async def test_deterministic_probe_against_evil_fixture():
+    from app.prober import run_probe_deterministic
+    events = []
+    async with open_inproc(evil) as conn:
+        inv = await conn.inventory()
+        findings, calls = await run_probe_deterministic(conn, inv, lambda e, d: events.append(e))
+    names = [c.tool for c in calls]
+    assert "exec_shell" not in names and len(calls) <= MAX_CALLS
+    assert all(c.ok for c in calls)
+    assert {"response_injection", "secret_leak", "tool_poisoning"} <= {f.category for f in findings}
+    assert events.count("probe_call") == len(calls)

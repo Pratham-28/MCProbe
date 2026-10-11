@@ -6,7 +6,9 @@ import json
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+import os
+
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
@@ -25,6 +27,7 @@ class AuditRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
     label: str | None = None
     bearer_token: str | None = None
+    force: bool = False  # skip replay of an existing report for the same URL
 
     @field_validator("url")
     @classmethod
@@ -43,7 +46,12 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
     app.state.connector = connector or open_connection
     app.state.llm = llm
 
+    def llm_disabled() -> bool:
+        return os.environ.get("AIRLOCK_LLM", "").lower() in ("off", "0", "false", "none")
+
     def get_llm():
+        if llm_disabled():
+            return None
         if app.state.llm is None:
             from app.llm import build_llm
             app.state.llm = build_llm()
@@ -58,7 +66,12 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
         return TARGETS
 
     @app.post("/audits", status_code=202)
-    async def create_audit(req: AuditRequest):
+    async def create_audit(req: AuditRequest, response: Response):
+        if not req.force:
+            existing = app.state.store.latest_for_url(req.url)
+            if existing is not None:
+                response.status_code = 200
+                return {"audit_id": existing.audit_id, "replayed": True}
         try:
             llm = get_llm()
         except RuntimeError as e:

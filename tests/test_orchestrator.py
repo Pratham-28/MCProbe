@@ -150,3 +150,32 @@ async def test_store_failure_still_finishes_run_and_closes_subscribers(tmp_path:
     await asyncio.wait_for(task, 2)
     assert run.done and got[-1] == "done" and "error" in got
     assert report.grade == "A"
+
+
+# --- replay and LLM-off mode ---
+def test_store_latest_for_url_returns_newest_completed(tmp_path: Path):
+    from datetime import datetime, timezone, timedelta
+    s = Store(tmp_path)
+    old = Report(url="u", grade="A", score=100, finished_at=datetime.now(timezone.utc) - timedelta(hours=2))
+    new = Report(url="u", grade="F", score=0, finished_at=datetime.now(timezone.utc))
+    unfinished = Report(url="u")  # no finished_at
+    other = Report(url="v", grade="B", score=80, finished_at=datetime.now(timezone.utc))
+    for r in (old, new, unfinished, other):
+        s.save(r)
+    assert s.latest_for_url("u").audit_id == new.audit_id
+    assert s.latest_for_url("missing") is None
+
+
+async def test_llm_off_mode_runs_static_and_deterministic_probe(tmp_path: Path):
+    run = AuditRun(Report(url=EVIL_URL))
+    report = await run_audit(run, bearer_token=None, llm=None, connector=CONNECTOR, store=Store(tmp_path))
+    assert report.grade == "F"
+    assert report.model == "none (LLM disabled)"
+    assert "LLM disabled" in report.phase("analyze").detail
+    assert report.phase("probe").status == "completed"
+    called = [c.tool for c in report.probe_calls]
+    assert "exec_shell" not in called  # gate still applies
+    assert {"read_notes", "get_config"} <= set(called)
+    cats = {f.category for f in report.findings}
+    assert {"response_injection", "secret_leak", "tool_poisoning"} <= cats  # rug pull still detected
+    assert report.llm_usage == {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}

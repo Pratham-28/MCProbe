@@ -26,3 +26,8 @@ def test_evidence_is_truncated_to_500_chars():
 def test_count_tokens():
     assert count_tokens("") == 0
     assert count_tokens("hello world") == 2
+
+
+def test_finding_has_empty_references_by_default():
+    f = Finding(category="secret_leak", severity="high", title="t", detail="d", location="l", phase="probe", source="prober")
+    assert f.references == []
