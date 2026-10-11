@@ -1,0 +1,110 @@
+<task-notification>
+<task-id>b25pa98vs</task-id>
+<tool-use-id>toolu_01VCQ5jw7j6xcqK7329Cegb7</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pyeole-personal-neatlogs-mcp-audit/7fbca266-6b95-49a5-b6e8-1f6ea559df1a/tasks/b25pa98vs.output</output-file>
+<status>failed</status>
+<summary>Background command "Record the Entire dashboard and checkpoint link in the build log and push" failed with exit code 144</summary>
+</task-notification>
+
+---
+
+My team member is going to do video for this and he want context about this feature. So cosndierign that cna you give me a data so I can share with him on slack
+
+---
+
+dont add in repo give me here
+
+---
+
+give me prompt for cfo.ai so it can create a plan for us
+
+---
+
+Now I want to create powerpoint presentation for this consider this we can share this as carousle in lnkedin psot alos. can you create me
+
+---
+
+in slide 3 ->  are w eshowing only things whihc are implemnted in our tool or this covers all 
+slide 4 -> how it works -> not clear about what we are talking before this we should introduce our tool
+how it was built we can remove
+
+Also think from the persepctive this deck is getting read by VCs so think from that persepctive also.
+
+---
+
+give me qucik dsicord message to annocue our project so we can show we are also buildign publically
+
+---
+
+can you check why this URL is not working ?
+
+---
+
+<task-notification>
+<task-id>bfd1cpull</task-id>
+<tool-use-id>toolu_01RPEE8A3jMJ3y24YrWUHzzx</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pyeole-personal-neatlogs-mcp-audit/7fbca266-6b95-49a5-b6e8-1f6ea559df1a/tasks/bfd1cpull.output</output-file>
+<status>completed</status>
+<summary>Background command "Check whether the deployed MCProbe server answers on HTTP, and whether ports 80 and 22 are reachable" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-type>artifact-auto-react</task-type>
+<summary>1 artifact auto-reply subscription paused by the interrupt (comments sent to Claude meanwhile are answered then)</summary>
+The user's interrupt paused it and the watch is kept; when the user asks you to publish this artifact again, that publish resumes it, or resume_replies if the user asks, as does the user's next typed message — each only on hosts that pass typed input through as the user's, and comments sent to Claude in the meantime are answered then; publishing without being asked, while handling a notification or a wake-up, leaves it paused. Do not republish or resume just to re-enable auto-replies unless the user asks.
+</task-notification>
+
+---
+
+This is the new IP address. Do  I need to do all steps agan
+
+---
+
+Suppose if we want to amke this app deployable for vercel what we need to cahge. In other session by creating a seaprate branch can we do that
+
+---
+
+can you tell me in tbaular foramt EC2 vs vercel what we will miss and gain
+
+---
+
+we want to do everything on free version of vercel
+
+---
+
+lets drop the idea of vercel completely. We will focus on EC2. Soething is went wrng webstie si not laodign
+
+---
+
+we want to make the URL using dns. Tell me how I can do that
+
+---
+
+tell me step by step
+
+---
+
+Elastic IP address could not be allocated.
+The maximum number of addresses has been reached.
+
+---
+
+Check this can we use any ID
+
+---
+
+added in duckdns. Ccan you check now
+
+---
+
+tell me what we need to do in step 1
+
+---
+
+I have done this tell me what is pendign
+
+---
+
+done
