@@ -25,6 +25,32 @@ Tailwind CDN + vanilla JS. Repo: https://github.com/Pratham-28/MCProbe · Live: 
 - **cfo.ai**: business plan (pricing, costs, revenue, runway): pending.
 
 ## Build log
+### 2026-10-11 (late) — accuracy, UX and platform-security pass before judging
+- Servers that cannot be scanned are no longer graded F: new `status: unscannable` with a reason
+  (`not_mcp`, `auth_required`, `timeout`, `unreachable`, `blocked`), grade `?`, grey card with a
+  plain-language explanation and an "Add a token and rescan" button for 401/403.
+- Labels and mappings fixed: poisoning in a tool description is always "Hidden instructions in a tool
+  description" → AML.T0110 / LLM01 / T1195; "Server instructions steer your AI" is reserved for the
+  server-level instructions; truncated descriptions get their own low-severity category; response
+  bloat has its own title and impact text; per-tool bloat quotes the tool, tokens and percentage.
+- Keyword false positives: three-tier rule (name or exec-class word keeps severity; description-only
+  → low "Possibly dangerous (keyword match)"; negated → skipped; honest annotations step severity
+  down once). `hf_whoami`- and `get_config`-style descriptions now produce no finding.
+- Safety gate unchanged in logic, plainer in wording ("Skipped to be safe: the description mentions
+  'command'. MCProbe never runs tools that might change things."); blocked calls appear in the log.
+- Placeholder arguments are realistic (URL fields and arrays get `https://example.com`, `minItems`).
+- SSRF guard: private, loopback, link-local, CGNAT, IPv6 equivalents and cloud-metadata addresses are
+  refused and re-checked after redirects; `MCPROBE_ALLOW_LOCAL=1` admits the local fixtures.
+- Report UX: verdict first (progress collapses to one line), findings table with Impact and What-to-do
+  columns, per-finding `impact`/`fix`/`matches` in JSON and CSV, evidence highlighting, rug-pull
+  before/after diff, framework chips with names, found-by badges, group-by-tool, Tools section with
+  probe status, agent timeline, score-filled grade ring, print stylesheet, mobile cards,
+  keyboard access, copy-ready safe-tools config, README badge endpoint, compare-with-previous.
+- Docs: whitepaper scoring/status/threat-model updated; README security notes and HTTPS (Caddy) section;
+  `deploy/Caddyfile`, `deploy/enable_https.sh`.
+- Tests: 111 passed. Verification: evil fixture F (8 findings), clean fixture A, GitHub repo page `?/not_mcp`,
+  GitHub MCP endpoint `?/auth_required`, metadata address `?/blocked`, hf_whoami → no finding.
+
 ### 2026-10-11 (night) — table report, replay, LLM-off, framework mapping, opening animation
 - Findings table (Issue · Severity · Impact · Framework · Evidence) with expandable rows,
   severity filter, CSV/JSON download, copy-link, print-to-PDF.

@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
 
+from app.compare import badge_svg, compare_reports
 from app.flags import GitHubVariableFlag, parse_on_off
 from app.mcp_client import Connector, open_connection
 from app.models import Report
@@ -133,6 +134,28 @@ def create_app(*, llm=None, connector: Connector | None = None, store: Store | N
         if report is None:
             raise HTTPException(404, "audit not found")
         return JSONResponse(report.model_dump(mode="json"))
+
+    def _find(audit_id: str) -> Report | None:
+        run = app.state.runs.get(audit_id)
+        return run.report if run is not None else app.state.store.load(audit_id)
+
+    @app.get("/audits/{audit_id}/compare")
+    async def compare(audit_id: str):
+        cur = _find(audit_id)
+        if cur is None:
+            raise HTTPException(404, "audit not found")
+        prev = app.state.store.previous_for(cur)
+        if prev is None:
+            return {"previous": None, "current": {"audit_id": cur.audit_id, "grade": cur.grade, "score": cur.score}}
+        return compare_reports(prev, cur)
+
+    @app.get("/badge/{audit_id}.svg")
+    async def badge(audit_id: str):
+        r = _find(audit_id)
+        if r is None:
+            raise HTTPException(404, "audit not found")
+        return Response(content=badge_svg(r.grade, r.score, r.status), media_type="image/svg+xml",
+                        headers={"Cache-Control": "no-cache"})
 
     @app.get("/audits/{audit_id}/events")
     async def events(audit_id: str):

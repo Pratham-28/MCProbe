@@ -17,10 +17,11 @@ def test_report_round_trips_through_json():
     assert again.findings[0].title == "t"
 
 
-def test_evidence_is_truncated_to_500_chars():
+def test_evidence_is_truncated_to_limit():
+    from app.models import EVIDENCE_LIMIT
     f = Finding(category="prompt_injection", severity="high", title="t", detail="d",
-                location="l", evidence="x" * 900, phase="analyze", source="static")
-    assert len(f.evidence) == 500
+                location="l", evidence="x" * (EVIDENCE_LIMIT + 400), phase="analyze", source="static")
+    assert len(f.evidence) == EVIDENCE_LIMIT
 
 
 def test_count_tokens():

@@ -25,6 +25,14 @@ Open http://localhost:8000, pick a target, Start Assessment.
 ## Verify tracing
     uv run python -m neatlogs doctor --probe   # expect TRACE_VISIBLE and TRACE_FINALIZED PASS
 
+## Security notes
+- MCProbe fetches user-supplied URLs server-side, so it refuses private, loopback, link-local, CGNAT and
+  cloud-metadata addresses (IPv4 and IPv6), and re-checks after redirects. The local demo fixtures on
+  `127.0.0.1` need `MCPROBE_ALLOW_LOCAL=1` in `.env`; do not set it on a public instance unless the
+  fixtures run there too (they do in the EC2 setup, bound to localhost).
+- Servers that cannot be scanned (not MCP, auth required, timeout, unreachable, blocked) get no grade:
+  the report shows `?` and a plain-language reason instead of an F.
+
 ## Deploy (AWS EC2, hackathon allowance)
 One `t3.small` in `us-east-1` inside `Hackathon_VPC`, Ubuntu 24.04, security group open on
 TCP 80 (and 22 for you). Then on the instance:
@@ -36,6 +44,18 @@ TCP 80 (and 22 for you). Then on the instance:
 
 Open `http://<public-ip>/`. Logs: `journalctl -u mcprobe -f`. The fixture servers run as a
 second unit, `mcprobe-fixtures`.
+
+### HTTPS behind a domain
+A free DuckDNS name plus Caddy gives you a padlock in about five minutes:
+
+1. Create `mcprobe.duckdns.org` (or your own domain's A record) pointing at the instance IP. Without an
+   Elastic IP, install the DuckDNS updater cron so the name follows IP changes:
+   `*/5 * * * * curl -s "https://www.duckdns.org/update?domains=mcprobe&token=<TOKEN>&ip="`
+2. Open TCP 443 (keep 80) in the security group.
+3. On the instance: `HOSTNAME=mcprobe.duckdns.org bash /opt/mcprobe/deploy/enable_https.sh`
+
+The config is `deploy/Caddyfile`: Caddy terminates TLS on 443, redirects 80, and proxies to MCProbe on
+127.0.0.1:8000. Certificates renew automatically.
 
 ### Switching AI analysis on and off while live (GitHub feature flag)
 Deterministic checks always run. The LLM judge and the probing agent are controlled from

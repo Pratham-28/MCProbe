@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 
 from app.models import Finding, Inventory, ProbeCall, ToolInfo
-from app.scoring import finding_key
+from app.scoring import finding_key, recategorise  # noqa: F401  (recategorise re-exported for callers)
 from app.static_checks import DESTRUCTIVE_WORDS, SECRET_PATTERNS, find_injection
 from app.tokens import count_tokens
 
@@ -44,7 +44,8 @@ MODEL_TOOLS = [
         "parameters": {"type": "object", "properties": {
             "category": {"type": "string", "enum": [
                 "prompt_injection", "tool_poisoning", "excessive_permissions", "context_bloat",
-                "data_exfiltration", "response_injection", "secret_leak", "schema_quality", "tool_shadowing"]},
+                "data_exfiltration", "response_injection", "secret_leak", "schema_quality",
+                "malformed_description", "tool_shadowing"]},
             "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
             "title": {"type": "string"}, "detail": {"type": "string"},
             "location": {"type": "string"}, "evidence": {"type": "string"},
@@ -64,20 +65,30 @@ MODEL_TOOLS = [
 SUBSTRING_WORDS = ("create", "delete", "remove", "upload", "purge", "transfer", "update",
                    "write", "shell", "command", "execute", "truncate", "destroy")
 
+GATE_NEVER = "MCProbe never runs tools that might change things."
+
 
 def is_blocked(tool: ToolInfo) -> str | None:
-    """Server-supplied annotations may add a block but never remove one: the server is untrusted."""
+    """Return a plain-language reason when the gate refuses to call this tool, else None.
+
+    Server-supplied annotations may add a block but never remove one: the server is untrusted.
+    The logic is deliberately conservative; only the wording distinguishes a name match
+    ("Blocked") from a description-only match ("Skipped to be safe").
+    """
     ann = tool.annotations or {}
     if ann.get("destructive_hint") is True:
-        return "tool is annotated destructive"
-    text = (tool.name + " " + (tool.description or "")).lower()
-    name = tool.name.lower()
+        return f"Blocked: the server marks '{tool.name}' as destructive. {GATE_NEVER}"
+    name_text = tool.name.lower().replace("_", " ").replace("-", " ")
+    desc = (tool.description or "").lower()
     for w in DESTRUCTIVE_WORDS:
-        if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", text):
-            return f"name or description matches destructive word '{w}'"
+        if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", name_text):
+            return f"Blocked: the tool name contains '{w}'. {GATE_NEVER}"
     for w in SUBSTRING_WORDS:
-        if w in name:
-            return f"name contains destructive word '{w}'"
+        if w in tool.name.lower():
+            return f"Blocked: the tool name contains '{w}'. {GATE_NEVER}"
+    for w in DESTRUCTIVE_WORDS:
+        if re.search(rf"(?<![a-z]){re.escape(w)}(?![a-z])", desc):
+            return f"Skipped to be safe: the description mentions '{w}'. {GATE_NEVER}"
     return None
 
 
@@ -91,17 +102,18 @@ def check_response(tool_name: str, text: str) -> list[Finding]:
             title=f"Response from '{tool_name}' contains agent-directed instructions",
             detail="Tool output tries to instruct the agent. Matched: "
                    + "; ".join(repr(m[:60]) for m in strong + weak),
-            location=loc, evidence=text,
+            location=loc, evidence=text, matches=strong + weak,
             recommendation="Treat tool output as untrusted data; the server should not embed instructions.",
             phase="probe", source="prober"))
     for label, rx in SECRET_PATTERNS:
         m = rx.search(text)
         if m:
+            start = max(0, m.start() - 120)
             out.append(Finding(
                 category="secret_leak", severity="high",
                 title=f"Response from '{tool_name}' contains a {label}",
                 detail="A credential-shaped string appeared in a tool response.",
-                location=loc, evidence=m.group(0),
+                location=loc, evidence=text[start:m.end() + 120], matches=[m.group(0)],
                 recommendation="Never return credentials from tools; rotate the exposed key.",
                 phase="probe", source="prober"))
             break
@@ -110,7 +122,7 @@ def check_response(tool_name: str, text: str) -> list[Finding]:
         out.append(Finding(
             category="context_bloat", severity="medium",
             title=f"Response from '{tool_name}' is {tokens} tokens",
-            detail=f"A single call returned {tokens} tokens (limit {RESPONSE_TOKEN_LIMIT}).",
+            detail=f"A single call to '{tool_name}' returned {tokens:,} tokens (limit {RESPONSE_TOKEN_LIMIT}).",
             location=loc, evidence=text[:300],
             recommendation="Paginate or summarise large results server-side.",
             phase="probe", source="prober"))
@@ -125,13 +137,13 @@ def _tool_named_in(text: str, tool_names) -> str | None:
 
 def _normalise_location(fi: Finding, by_name: dict[str, ToolInfo]) -> None:
     """Model-written locations are free text; map them onto our 'response:<tool>' / 'tool:<tool>' scheme."""
-    if fi.location.startswith(("tool:", "response:", "server.")):
-        return
-    tool = _tool_named_in(fi.location + " " + fi.title, by_name)
-    if tool:
-        low = fi.location.lower()
-        kind = "response" if any(w in low for w in ("response", "output", "result", "returned")) else "tool"
-        fi.location = f"{kind}:{tool}"
+    if not fi.location.startswith(("tool:", "response:", "server.")):
+        tool = _tool_named_in(fi.location + " " + fi.title, by_name)
+        if tool:
+            low = fi.location.lower()
+            kind = "response" if any(w in low for w in ("response", "output", "result", "returned")) else "tool"
+            fi.location = f"{kind}:{tool}"
+    recategorise(fi)
 
 
 def _duplicates_existing(fi: Finding, existing: list[Finding]) -> bool:
@@ -140,75 +152,112 @@ def _duplicates_existing(fi: Finding, existing: list[Finding]) -> bool:
     return any(finding_key(e) == key for e in existing)
 
 
+_URLISH = re.compile(r"(url|uri|link|href|website|endpoint)", re.I)
+
+
+def _placeholder_scalar(name: str, spec: dict):
+    enum = spec.get("enum")
+    typ = spec.get("type")
+    if isinstance(typ, list):
+        typ = next((t for t in typ if t != "null"), None)
+    if enum:
+        return enum[0]
+    if typ in ("integer", "number"):
+        return 1
+    if typ == "boolean":
+        return False
+    if typ == "object":
+        return {}
+    if typ == "array":
+        items = spec.get("items") or {}
+        n = max(1, int(spec.get("minItems") or 1))
+        return [_placeholder_scalar(name, items)] * n
+    if spec.get("format") in ("uri", "url") or _URLISH.search(name):
+        return "https://example.com"
+    return "test"
+
+
 def placeholder_arguments(schema: dict) -> dict:
-    """Harmless minimal arguments satisfying a JSON schema's declared properties."""
+    """Harmless but realistic arguments satisfying a JSON schema's declared properties."""
     props = (schema or {}).get("properties") or {}
     required = (schema or {}).get("required") or list(props)
-    out: dict = {}
-    for name in required:
-        spec = props.get(name) or {}
-        enum = spec.get("enum")
-        typ = spec.get("type")
-        if isinstance(typ, list):
-            typ = next((t for t in typ if t != "null"), None)
-        if enum:
-            out[name] = enum[0]
-        elif typ in ("integer", "number"):
-            out[name] = 1
-        elif typ == "boolean":
-            out[name] = False
-        elif typ == "array":
-            out[name] = []
-        elif typ == "object":
-            out[name] = {}
+    return {name: _placeholder_scalar(name, props.get(name) or {}) for name in required}
+
+
+def _diff_definitions(before: dict[str, dict], after: dict[str, dict]) -> dict[str, dict]:
+    diff: dict[str, dict] = {}
+    for name in sorted(set(before) | set(after)):
+        b, a = before.get(name), after.get(name)
+        if b is None:
+            diff[name] = {"added": {"before": "", "after": a.get("description", "")}}
+        elif a is None:
+            diff[name] = {"removed": {"before": b.get("description", ""), "after": ""}}
         else:
-            out[name] = "test"
-    return out
+            fields = {}
+            if b.get("description") != a.get("description"):
+                fields["description"] = {"before": b.get("description", ""), "after": a.get("description", "")}
+            if b.get("input_schema") != a.get("input_schema"):
+                fields["input_schema"] = {"before": json.dumps(b.get("input_schema"), indent=1, sort_keys=True),
+                                          "after": json.dumps(a.get("input_schema"), indent=1, sort_keys=True)}
+            if fields:
+                diff[name] = fields
+    return diff
 
 
-async def _rug_pull_check(conn, before: dict[str, str], findings: list[Finding], emit: Emit) -> None:
-    after = await conn.tool_fingerprints()
-    changed = sorted(n for n in before if n in after and before[n] != after[n])
-    missing = sorted(n for n in before if n not in after)
-    added = sorted(n for n in after if n not in before)
-    if changed or missing or added:
+async def _rug_pull_check(conn, before: dict[str, dict], findings: list[Finding], emit: Emit) -> None:
+    after = await conn.tool_definitions()
+    diff = _diff_definitions(before, after)
+    if diff:
+        names = sorted(diff)
         fi = Finding(
             category="tool_poisoning", severity="critical",
             title="Tool definitions changed after use (rug pull)",
-            detail="The server presented different tool definitions after tools were called. "
-                   f"Changed: {changed}; removed: {missing}; added: {added}.",
+            detail="The server presented different tool definitions after tools were called. Changed: "
+                   + ", ".join(f"{n} ({', '.join(diff[n].keys())})" for n in names) + ".",
             location="server.tools",
-            evidence=", ".join(changed + missing + added),
+            evidence="\n\n".join(f"{n} / {field}:\n- {c['before'][:300]}\n+ {c['after'][:300]}"
+                                 for n in names for field, c in diff[n].items()),
+            diff=diff,
             recommendation="Pin and verify tool definitions; refuse servers whose definitions drift.",
             phase="probe", source="prober")
         findings.append(fi)
         emit("finding", fi.model_dump(mode="json"))
 
 
+def _blocked_call(name: str, arguments: dict, reason: str) -> ProbeCall:
+    return ProbeCall(tool=name, arguments=arguments, ok=False, blocked=True, note=reason, seconds=0.0)
+
+
+async def _execute(conn, name: str, arguments: dict, findings: list[Finding], emit: Emit) -> tuple[ProbeCall, str, list[Finding]]:
+    t0 = time.perf_counter()
+    ok, text = await conn.call_tool(name, arguments, timeout=CALL_TIMEOUT)
+    secs = round(time.perf_counter() - t0, 3)
+    hits = check_response(name, text) if ok else []
+    for fi in hits:
+        findings.append(fi)
+        emit("finding", fi.model_dump(mode="json"))
+    note = ("; ".join(h.title for h in hits)) if hits else ("" if ok else "Tool returned an error")
+    pc = ProbeCall(tool=name, arguments=arguments, ok=ok, response_excerpt=text[:500],
+                   response_tokens=count_tokens(text), seconds=secs, note=note)
+    return pc, text, hits
+
+
 async def run_probe_deterministic(conn, inv: Inventory, emit: Emit) -> tuple[list[Finding], list[ProbeCall]]:
     """No-LLM probe: call every gate-approved tool once with placeholder arguments."""
     findings: list[Finding] = []
     calls: list[ProbeCall] = []
-    before = await conn.tool_fingerprints()
+    before = await conn.tool_definitions()
     for t in inv.tools:
         if len(calls) >= MAX_CALLS:
             emit("log", {"phase": "probe", "message": f"Call cap of {MAX_CALLS} reached"})
             break
         reason = is_blocked(t)
         if reason:
-            emit("log", {"phase": "probe", "message": f"Skipping {t.name}: {reason}"})
+            pc = _blocked_call(t.name, {}, reason)
+            calls.append(pc)
+            emit("probe_call", pc.model_dump(mode="json"))
             continue
-        arguments = placeholder_arguments(t.input_schema)
-        t0 = time.perf_counter()
-        ok, text = await conn.call_tool(t.name, arguments, timeout=CALL_TIMEOUT)
-        secs = round(time.perf_counter() - t0, 3)
-        hits = check_response(t.name, text) if ok else []
-        for fi in hits:
-            findings.append(fi)
-            emit("finding", fi.model_dump(mode="json"))
-        note = ("; ".join(h.title for h in hits)) if hits else ("" if ok else "Tool returned an error")
-        pc = ProbeCall(tool=t.name, arguments=arguments, ok=ok, response_excerpt=text[:500],
-                       response_tokens=count_tokens(text), seconds=secs, note=note)
+        pc, _, _ = await _execute(conn, t.name, placeholder_arguments(t.input_schema), findings, emit)
         calls.append(pc)
         emit("probe_call", pc.model_dump(mode="json"))
     await _rug_pull_check(conn, before, findings, emit)
@@ -228,7 +277,7 @@ async def run_probe(llm, conn, inv: Inventory, emit: Emit) -> tuple[list[Finding
     findings: list[Finding] = []
     calls: list[ProbeCall] = []
     by_name = {t.name: t for t in inv.tools}
-    before = await conn.tool_fingerprints()
+    before = await conn.tool_definitions()
 
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM.format(max_calls=MAX_CALLS)},
@@ -288,22 +337,12 @@ async def run_probe(llm, conn, inv: Inventory, emit: Emit) -> tuple[list[Finding
                     result = {"ok": False, "error": f"unknown tool {name!r}"}
                 else:
                     reason = is_blocked(by_name[name])
-                    t0 = time.perf_counter()
                     if reason:
-                        pc = ProbeCall(tool=name, arguments=arguments, ok=False, note=f"Blocked by safety gate: {reason}",
-                                       seconds=round(time.perf_counter() - t0, 3))
-                        result = {"ok": False, "error": pc.note}
+                        pc = _blocked_call(name, arguments, reason)
+                        result = {"ok": False, "error": reason}
                     else:
-                        ok, text = await conn.call_tool(name, arguments, timeout=CALL_TIMEOUT)
-                        secs = round(time.perf_counter() - t0, 3)
-                        hits = check_response(name, text) if ok else []
-                        for fi in hits:
-                            findings.append(fi)
-                            emit("finding", fi.model_dump(mode="json"))
-                        note = ("; ".join(h.title for h in hits)) if hits else ("" if ok else "Tool returned an error")
-                        pc = ProbeCall(tool=name, arguments=arguments, ok=ok, response_excerpt=text[:500],
-                                       response_tokens=count_tokens(text), seconds=secs, note=note)
-                        result = {"ok": ok, "response": text[:RESPONSE_CHARS_TO_MODEL],
+                        pc, text, hits = await _execute(conn, name, arguments, findings, emit)
+                        result = {"ok": pc.ok, "response": text[:RESPONSE_CHARS_TO_MODEL],
                                   "response_tokens": pc.response_tokens,
                                   "automatic_checks": [h.title for h in hits]}
                     calls.append(pc)

@@ -1,0 +1,6 @@
+# HTTPS for MCProbe. Replace the hostname with yours (a DuckDNS name works).
+# Caddy obtains and renews the Let's Encrypt certificate automatically.
+mcprobe.duckdns.org {
+    reverse_proxy 127.0.0.1:8000
+    encode gzip
+}

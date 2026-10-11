@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCProbe Whitepaper · How we vet MCP servers</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234f46e5%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2718%27 text-anchor=%27middle%27 fill=%27white%27%3E%E2%97%88%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -136,28 +137,36 @@
     <h2 id="threats">5. Threat model and framework mapping</h2>
     <table>
       <tr><th>MCProbe finding</th><th>MITRE ATLAS</th><th>OWASP LLM Top 10 (2025)</th><th>MITRE ATT&amp;CK</th></tr>
-      <tr><td>Hidden instructions in a tool description</td><td>AML.T0110 AI Agent Tool Poisoning</td><td>LLM01 Prompt Injection</td><td>T1195 Supply Chain Compromise</td></tr>
+      <tr><td>Hidden instructions in a tool description (found by pattern, AI judge, or the probing agent)</td><td>AML.T0110 AI Agent Tool Poisoning</td><td>LLM01 Prompt Injection</td><td>T1195 Supply Chain Compromise</td></tr>
       <tr><td>Tool definitions changed after use</td><td>AML.T0109 AI Supply Chain Rug Pull</td><td>LLM03 Supply Chain</td><td>T1195</td></tr>
       <tr><td>Server instructions steer the agent</td><td>AML.T0051 LLM Prompt Injection · AML.T0080 Agent Context Poisoning</td><td>LLM01</td><td>–</td></tr>
       <tr><td>Tool output tries to hijack the agent</td><td>AML.T0051 · AML.T0080</td><td>LLM01</td><td>–</td></tr>
       <tr><td>Leaked credentials</td><td>AML.T0057 LLM Data Leakage · AML.T0098 Tool Credential Harvesting</td><td>LLM02 Sensitive Information Disclosure</td><td>T1552 Unsecured Credentials</td></tr>
       <tr><td>Dangerous capability</td><td>AML.T0053 AI Agent Tool Invocation · AML.T0101 Data Destruction via Tool Invocation</td><td>LLM06 Excessive Agency</td><td>T1059 Command and Scripting Interpreter</td></tr>
       <tr><td>Tries to send data elsewhere</td><td>AML.T0086 Exfiltration via Agent Tool Invocation</td><td>LLM02</td><td>T1041 Exfiltration Over C2 Channel</td></tr>
-      <tr><td>Context bloat</td><td>AML.T0034.002 Agentic Resource Consumption</td><td>LLM10 Unbounded Consumption</td><td>–</td></tr>
+      <tr><td>Context bloat (tool list) and oversized tool responses</td><td>AML.T0034.002 Agentic Resource Consumption</td><td>LLM10 Unbounded Consumption</td><td>–</td></tr>
+      <tr><td>Truncated or malformed description</td><td>–</td><td>–</td><td>–</td></tr>
       <tr><td>Impersonates another tool</td><td>AML.T0110</td><td>LLM01</td><td>T1036 Masquerading</td></tr>
       <tr><td>Unencrypted connection</td><td>–</td><td>LLM03</td><td>T1557 Adversary-in-the-Middle</td></tr>
     </table>
     <p>CVEs are deliberately absent. A CVE names a known bug in a specific software version; MCProbe finds behaviour in a server nobody has catalogued yet. The two are complementary: a future registry integration could attach CVEs to servers built on known-vulnerable packages.</p>
 
     <h2 id="scoring">6. Scoring</h2>
-    <p>Start at 100. Subtract 30 per critical, 15 per high, 7 per medium, 2 per low, floor at zero. A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, otherwise F. A server that cannot be connected to or inventoried is F regardless, because an unknown is not a pass. Weights are intentionally simple and visible; tuning them against a corpus of real servers is on the roadmap.</p>
+    <p>Start at 100. Subtract 30 per critical, 15 per high, 7 per medium, 2 per low, floor at zero. A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, otherwise F. Weights are intentionally simple and visible; tuning them against a corpus of real servers is on the roadmap.</p>
+    <p><strong>Servers that cannot be scanned get no grade.</strong> If MCProbe cannot complete an MCP handshake, the result is <span class="mono">?</span> with a reason rather than an F: <em>not_mcp</em> (the address answered with a web page or something that is not MCP), <em>auth_required</em> (401 or 403; add a token and rescan), <em>timeout</em>, <em>unreachable</em> (DNS or connection refused), or <em>blocked</em> (a private or cloud-internal address MCProbe refuses to contact). An unknown is neither a pass nor a fail, and the report says so.</p>
+    <p><strong>Keyword findings have three tiers.</strong> A dangerous word in the tool <em>name</em>, or an exec-class word anywhere (exec, shell, eval, command, sudo, kill, drop), keeps full severity. A word that appears only in the description is reported as low, "Possibly dangerous (keyword match)". A word the description explicitly negates ("read-only", "never returns", "does not") is not reported. An honest <span class="mono">readOnlyHint</span> or <span class="mono">destructiveHint</span> annotation steps the severity down one level; annotations never unlock the probe gate.</p>
 
     <h2 id="status">7. Status: what is implemented today</h2>
     <table>
       <tr><th>Capability</th><th>Status</th><th>Notes</th></tr>
       <tr><td>Streamable HTTP and SSE connection, bearer token</td><td><span class="pill done">Implemented</span></td><td>15 s timeout, readable failure</td></tr>
       <tr><td>Inventory of tools, prompts, resources with token costs</td><td><span class="pill done">Implemented</span></td><td></td></tr>
-      <tr><td>Deterministic checks (section 4.3)</td><td><span class="pill done">Implemented</span></td><td>Six checks; thresholds are constants</td></tr>
+      <tr><td>Deterministic checks (section 4.3)</td><td><span class="pill done">Implemented</span></td><td>Six checks; thresholds are constants; keyword rule has three tiers with negation handling</td></tr>
+      <tr><td>Unscannable servers reported as "?" with a reason, never graded</td><td><span class="pill done">Implemented</span></td><td>not_mcp, auth_required, timeout, unreachable, blocked</td></tr>
+      <tr><td>SSRF guard: private, loopback, link-local, CGNAT and cloud-metadata addresses refused, re-checked after redirects</td><td><span class="pill done">Implemented</span></td><td><span class="mono">MCPROBE_ALLOW_LOCAL=1</span> permits the local demo fixtures</td></tr>
+      <tr><td>Rug-pull diff: before/after of changed descriptions and schemas</td><td><span class="pill done">Implemented</span></td><td>Shown in the report with removed and added text</td></tr>
+      <tr><td>Per-finding impact and fix text, evidence highlighting, framework mapping per row</td><td><span class="pill done">Implemented</span></td><td>Also in the JSON and CSV exports</td></tr>
+      <tr><td>Compare with previous scan, README badge, copy-ready safe-tools config</td><td><span class="pill done">Implemented</span></td><td></td></tr>
       <tr><td>LLM judge with JSON output and fallbacks</td><td><span class="pill done">Implemented</span></td><td>One call per audit</td></tr>
       <tr><td>Gated probing agent with caps, response checks, rug-pull diff</td><td><span class="pill done">Implemented</span></td><td>5 calls, 8 turns</td></tr>
       <tr><td>No-LLM mode</td><td><span class="pill done">Implemented</span></td><td><span class="mono">MCPROBE_LLM=off</span></td></tr>
@@ -200,6 +209,7 @@
       <li>Pattern-based checks produce false positives on benign text that happens to sound imperative. The judge and the human-readable evidence exist so a reader can disagree quickly.</li>
       <li>The probe calls at most five tools with harmless inputs. It observes behaviour; it does not prove absence of bad behaviour, and it cannot see what a server does with inputs it never sends.</li>
       <li>A server can behave differently for MCProbe than for a real agent (fingerprinting the client). Pin-and-watch mitigates this over time; a single scan does not.</li>
+      <li>Servers behind OAuth, or any address that is not public, are reported as unscannable rather than graded. "?" means "we could not look", not "safe".</li>
       <li>The grade compresses a lot into one letter. Read the table.</li>
       <li>Model-based findings depend on the model. They are labelled "found by judge/prober" so they can be weighed accordingly.</li>
     </ul>

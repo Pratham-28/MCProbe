@@ -49,6 +49,24 @@ class Store:
                 best = r
         return best
 
+    def previous_for(self, report: Report) -> Report | None:
+        """The newest finished report for the same URL that finished before `report`."""
+        if report.finished_at is None:
+            return None
+        best: Report | None = None
+        for p in self.dir.glob("*.json"):
+            try:
+                r = self._read(p)
+            except Exception:
+                continue
+            if r.url != report.url or r.audit_id == report.audit_id or r.finished_at is None:
+                continue
+            if r.finished_at >= report.finished_at:
+                continue
+            if best is None or r.finished_at > best.finished_at:
+                best = r
+        return best
+
     def list_summaries(self) -> list[dict]:
         reports: list[Report] = []
         for p in self.dir.glob("*.json"):
@@ -60,6 +78,7 @@ class Store:
         return [{
             "audit_id": r.audit_id, "url": r.url, "target_label": r.target_label,
             "grade": r.grade, "score": r.score,
+            "status": r.status, "unscannable_reason": r.unscannable_reason, "verdict": r.verdict,
             "finished_at": r.finished_at.isoformat() if r.finished_at else None,
             "server_name": r.inventory.server_name if r.inventory else None,
         } for r in reports]

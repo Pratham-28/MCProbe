@@ -90,11 +90,14 @@ async def run_audit(run: AuditRun, *, bearer_token: str | None, llm, connector: 
                 run.emit("error", {"message": flatten_error(exc)})
             t = _PhaseTimer(run, "report")
             apply_scoring(report)
-            if report.phase("connect").status == "failed" or report.phase("discover").status == "failed":
-                report.score, report.grade = 0, "F"  # spec §12: a server we could not assess grades F
+            if report.status == "unscannable":
+                report.score, report.grade = 0, "?"
+                from app.scoring import VERDICT_HEAD, verdict_sentence
+                report.verdict = VERDICT_HEAD["?"] + " " + verdict_sentence("?", report.findings)
             report.llm_usage = _usage_delta(usage_before, getattr(llm, "usage", {}) or {})
             report.finished_at = now()
-            t.set("completed", f"Grade {report.grade}, score {report.score}, {len(report.findings)} findings")
+            t.set("completed", (f"Grade {report.grade}, score {report.score}, {len(report.findings)} findings"
+                                if report.status == "scanned" else f"Not graded: {report.unscannable_reason}"))
             try:
                 store.save(report)  # after the final phase is marked complete, so replays look finished
             except Exception as exc:
@@ -109,6 +112,54 @@ async def run_audit(run: AuditRun, *, bearer_token: str | None, llm, connector: 
             except Exception:
                 log.exception("neatlogs flush failed")
     return report
+
+
+def classify_failure(msg: str) -> str:
+    """Map a connection/discovery error message onto an UnscannableReason."""
+    m = msg or ""
+    if m.lower().startswith("blocked") or "blocked:" in m.lower():
+        return "blocked"
+    if re.search(r"\b40[13]\b|Unauthorized|Forbidden", m):
+        return "auth_required"
+    if re.search(r"timed? ?out|TimeoutError|ReadTimeout|ConnectTimeout", m, re.I):
+        return "timeout"
+    if re.search(r"Connection refused|ConnectError|nodename nor servname|Name or service not known|"
+                 r"getaddrinfo|No route to host|Network is unreachable|DNS", m, re.I):
+        return "unreachable"
+    return "not_mcp"
+
+
+UNSCANNABLE_TEXT = {
+    "auth_required": ("This server requires authentication",
+                      "The server answered 401/403 to an anonymous client, so its tools could not be read or "
+                      "tested. If it accepts an API key, add it with the token field and scan again. If it only "
+                      "supports an OAuth login (Notion, GitHub and most SaaS servers do), MCProbe cannot assess "
+                      "it yet; OAuth support is on the roadmap."),
+    "timeout": ("The server did not answer in time",
+                "No MCP handshake completed within the connection timeout. The server may be slow, asleep, or "
+                "behind a firewall that drops connections."),
+    "unreachable": ("The server could not be reached",
+                    "DNS lookup or the TCP connection failed. Check the hostname, the port, and that the server "
+                    "is running and reachable from the internet."),
+    "not_mcp": ("This URL does not speak MCP",
+                "The address answered, but not with an MCP handshake (it may be a web page, a docs site, or a "
+                "repository URL). MCProbe needs the server's MCP endpoint, usually ending in /mcp or /sse."),
+    "blocked": ("This address is not scannable from MCProbe",
+                "The hostname resolves to a private, local or cloud-internal address. MCProbe only scans servers "
+                "reachable on the public internet."),
+}
+
+
+def _mark_unscannable(run: AuditRun, reason: str, msg: str, phase: str, location: str) -> None:
+    report = run.report
+    report.status = "unscannable"
+    report.unscannable_reason = reason  # type: ignore[assignment]
+    title, detail = UNSCANNABLE_TEXT[reason]
+    _add(run, [Finding(category="connectivity", severity="info", title=title, detail=detail,
+                       location=location, evidence=msg[:500],
+                       recommendation=("Add a bearer token and scan again." if reason == "auth_required"
+                                       else "Fix the address and scan again."),
+                       phase=phase, source="static")])  # type: ignore[arg-type]
 
 
 def _skip_rest(run: AuditRun, phases: tuple[str, ...]) -> None:
@@ -126,24 +177,9 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
     except Exception as exc:
         msg = str(exc) if isinstance(exc, ConnectionFailed) else flatten_error(exc)
         _skip_rest(run, ("discover", "analyze", "probe"))
-        if re.search(r"\b40[13]\b|Unauthorized|Forbidden", msg):
-            connect.set("failed", "Authentication required: the server answered 401/403 to an anonymous client")
-            _add(run, [Finding(
-                category="connectivity", severity="critical", title="This server requires authentication",
-                detail="The server refused an anonymous connection, so its tools could not be read or tested. "
-                       "If it accepts an API key, add it with the token field and scan again. If it only "
-                       "supports an OAuth login (Notion, GitHub and most SaaS servers do), MCProbe cannot "
-                       "assess it yet; OAuth support is on the roadmap.",
-                location="server.url", evidence=msg[:500],
-                recommendation="Supply a bearer token, or wait for OAuth support. A server you cannot read is "
-                               "a server you cannot vet, so treat it as unverified.",
-                phase="connect", source="static")])
-        else:
-            connect.set("failed", msg[:300])
-            _add(run, [Finding(category="connectivity", severity="critical", title="Could not connect to the MCP server",
-                               detail=msg[:1000], location="server.url", evidence=report.url,
-                               recommendation="Check the URL, transport (Streamable HTTP or SSE), and any required token.",
-                               phase="connect", source="static")])
+        reason = classify_failure(msg)
+        connect.set("failed", f"{UNSCANNABLE_TEXT[reason][0]} ({reason})")
+        _mark_unscannable(run, reason, msg, "connect", "server.url")
         return
     try:
         connect.set("completed", f"Connected via {conn.transport}")
@@ -155,13 +191,13 @@ async def _run_phases(run: AuditRun, bearer_token: str | None, llm, connector: C
             msg = flatten_error(exc)
             discover.set("failed", msg[:300])
             _skip_rest(run, ("analyze", "probe"))
-            _add(run, [Finding(category="connectivity", severity="critical", title="Could not read the server's tool list",
-                               detail=msg[:1000], location="server.tools", evidence=report.url,
-                               recommendation="The server connected but its tools/list response could not be processed; "
-                                              "check that it speaks a supported MCP protocol version.",
-                               phase="discover", source="static")])
+            _mark_unscannable(run, classify_failure(msg) if classify_failure(msg) != "unreachable" else "not_mcp",
+                              msg, "discover", "server.tools")
             return
         report.inventory = inv
+        if not report.target_label:
+            from urllib.parse import urlparse
+            report.target_label = inv.server_name or (urlparse(report.url).hostname or report.url)
         run.emit("log", {"phase": "discover", "message": f"Found {len(inv.tools)} tools, {len(inv.prompts)} prompts, {len(inv.resources)} resources"})
         discover.set("completed", f"{len(inv.tools)} tools, {len(inv.prompts)} prompts, {len(inv.resources)} resources, {inv.total_tokens} tokens")
 

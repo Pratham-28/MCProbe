@@ -139,7 +139,7 @@ def test_placeholder_arguments_from_schema():
         "q": {"type": "string"}, "n": {"type": "integer"}, "x": {"type": "number"}, "flag": {"type": "boolean"},
         "tags": {"type": "array"}, "opts": {"type": "object"}, "mode": {"type": "string", "enum": ["fast", "slow"]},
         "optional": {"type": "string"}}, "required": ["q", "n", "x", "flag", "tags", "opts", "mode"]}
-    assert placeholder_arguments(schema) == {"q": "test", "n": 1, "x": 1, "flag": False, "tags": [], "opts": {}, "mode": "fast"}
+    assert placeholder_arguments(schema) == {"q": "test", "n": 1, "x": 1, "flag": False, "tags": ["test"], "opts": {}, "mode": "fast"}
     assert placeholder_arguments({}) == {}
     assert placeholder_arguments({"type": "object", "properties": {"a": {"type": "string"}}}) == {"a": "test"}  # fill optionals too when nothing is required
 
@@ -150,9 +150,10 @@ async def test_deterministic_probe_against_evil_fixture():
     async with open_inproc(evil) as conn:
         inv = await conn.inventory()
         findings, calls = await run_probe_deterministic(conn, inv, lambda e, d: events.append(e))
-    names = [c.tool for c in calls]
-    assert "exec_shell" not in names and len(calls) <= MAX_CALLS
-    assert all(c.ok for c in calls)
+    executed = [c for c in calls if not c.blocked]
+    assert "exec_shell" not in [c.tool for c in executed] and len(executed) <= MAX_CALLS
+    assert all(c.ok for c in executed)
+    assert any(c.tool == "exec_shell" and c.blocked and c.note.startswith("Blocked") for c in calls)
     assert {"response_injection", "secret_leak", "tool_poisoning"} <= {f.category for f in findings}
     assert events.count("probe_call") == len(calls)
 

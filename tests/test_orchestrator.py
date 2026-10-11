@@ -51,8 +51,8 @@ async def test_clean_server_grades_a(tmp_path: Path):
 async def test_unreachable_server_reports_connectivity(tmp_path: Path):
     run = AuditRun(Report(url="http://localhost:9/mcp"))
     report = await run_audit(run, bearer_token=None, llm=FakeLLM(), connector=CONNECTOR, store=Store(tmp_path))
-    assert report.grade == "F"
-    assert report.findings[0].category == "connectivity" and report.findings[0].severity == "critical"
+    assert report.grade == "?" and report.status == "unscannable" and report.unscannable_reason == "unreachable"
+    assert report.findings[0].category == "connectivity" and report.findings[0].severity == "info"
     assert report.phase("connect").status == "failed"
     assert {p.status for p in report.phases[1:4]} == {"skipped"}
     assert report.phase("report").status == "completed"
@@ -117,8 +117,8 @@ async def test_discover_failure_marks_phase_failed_and_grades_f(tmp_path: Path):
     report = await run_audit(run, bearer_token=None, llm=FakeLLM(), connector=failing_inventory_connector(), store=Store(tmp_path))
     assert report.phase("discover").status == "failed" and "schema exploded" in report.phase("discover").detail
     assert {report.phase("analyze").status, report.phase("probe").status} == {"skipped"}
-    assert report.grade == "F" and report.score == 0
-    assert any(f.category == "connectivity" and f.severity == "critical" for f in report.findings)
+    assert report.grade == "?" and report.status == "unscannable" and report.unscannable_reason == "not_mcp"
+    assert any(f.category == "connectivity" and f.severity == "info" for f in report.findings)
     assert run.done and run.events[-1]["event"] == "done"
 
 
@@ -173,8 +173,9 @@ async def test_llm_off_mode_runs_static_and_deterministic_probe(tmp_path: Path):
     assert report.model == "none (LLM disabled)"
     assert "LLM disabled" in report.phase("analyze").detail
     assert report.phase("probe").status == "completed"
-    called = [c.tool for c in report.probe_calls]
+    called = [c.tool for c in report.probe_calls if not c.blocked]
     assert "exec_shell" not in called  # gate still applies
+    assert any(c.tool == "exec_shell" and c.blocked for c in report.probe_calls)  # and is visible in the log
     assert {"read_notes", "get_config"} <= set(called)
     cats = {f.category for f in report.findings}
     assert {"response_injection", "secret_leak", "tool_poisoning"} <= cats  # rug pull still detected
@@ -222,8 +223,9 @@ async def test_auth_required_server_gets_a_plain_language_finding(tmp_path: Path
     report = await run_audit(AuditRun(Report(url="https://mcp.notion.com/mcp")), bearer_token=None, llm=FakeLLM(),
                              connector=connector, store=Store(tmp_path))
     f = report.findings[0]
-    assert f.category == "connectivity" and f.severity == "critical"
+    assert f.category == "connectivity" and f.severity == "info"
     assert f.title == "This server requires authentication"
-    assert "log in" in f.detail.lower() or "token" in f.detail.lower()
+    assert "token" in f.detail.lower()
     assert "401" in f.evidence
-    assert report.phase("connect").detail.startswith("Authentication required")
+    assert report.unscannable_reason == "auth_required" and report.grade == "?"
+    assert "requires authentication" in report.phase("connect").detail

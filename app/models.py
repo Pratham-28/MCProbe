@@ -11,13 +11,17 @@ Severity = Literal["critical", "high", "medium", "low", "info"]
 Category = Literal[
     "prompt_injection", "tool_poisoning", "excessive_permissions",
     "context_bloat", "data_exfiltration", "response_injection",
-    "secret_leak", "schema_quality", "tool_shadowing", "insecure_transport",
-    "connectivity",
+    "secret_leak", "schema_quality", "malformed_description", "tool_shadowing",
+    "insecure_transport", "connectivity",
 ]
 Phase = Literal["connect", "discover", "analyze", "probe", "report"]
 PHASES: list[Phase] = ["connect", "discover", "analyze", "probe", "report"]
-Grade = Literal["A", "B", "C", "D", "F"]
+Grade = Literal["A", "B", "C", "D", "F", "?"]
 Source = Literal["static", "judge", "prober"]
+ScanStatus = Literal["scanned", "unscannable"]
+UnscannableReason = Literal["not_mcp", "auth_required", "timeout", "unreachable", "blocked"]
+
+EVIDENCE_LIMIT = 1500
 
 
 def new_id() -> str:
@@ -40,10 +44,15 @@ class Finding(BaseModel):
     phase: Phase
     source: Source
     references: list[dict[str, str]] = Field(default_factory=list)  # {framework, id, name, url}
+    # Added for the report UI. All optional so older stored reports still load.
+    impact: str = ""                                  # one specific sentence: what this means for the user
+    fix: str = ""                                     # one specific sentence: what to do
+    matches: list[str] = Field(default_factory=list)  # exact substrings of `evidence` that triggered the finding
+    diff: dict[str, Any] | None = None                # rug pull: {"tool": {"field": {"before": str, "after": str}}}
 
     def model_post_init(self, __context: Any) -> None:
-        if len(self.evidence) > 500:
-            self.evidence = self.evidence[:497] + "..."
+        if len(self.evidence) > EVIDENCE_LIMIT:
+            self.evidence = self.evidence[:EVIDENCE_LIMIT - 3] + "..."
 
 
 class ToolInfo(BaseModel):
@@ -82,6 +91,7 @@ class ProbeCall(BaseModel):
     response_tokens: int = 0
     seconds: float = 0.0
     note: str = ""
+    blocked: bool = False  # refused by the safety gate (never sent to the server)
 
 
 class Report(BaseModel):
@@ -105,6 +115,9 @@ class Report(BaseModel):
         default_factory=lambda: {"prompt_tokens": 0, "completion_tokens": 0, "calls": 0}
     )
     model: str = ""
+    status: ScanStatus = "scanned"
+    unscannable_reason: UnscannableReason | None = None
+    verdict: str = ""
 
     def phase(self, name: Phase) -> PhaseStatus:
         return next(p for p in self.phases if p.phase == name)
