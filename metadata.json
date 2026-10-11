@@ -1,0 +1,55 @@
+{
+  "cli_version": "0.11.4",
+  "checkpoint_id": "01M4NWSYF2BN0JEHBH5T8YNECV",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".env.example",
+    "README.md",
+    "app/compare.py",
+    "app/main.py",
+    "app/mcp_client.py",
+    "app/models.py",
+    "app/orchestrator.py",
+    "app/prober.py",
+    "app/scoring.py",
+    "app/static_checks.py",
+    "app/store.py",
+    "app/targets.py",
+    "deploy/Caddyfile",
+    "deploy/enable_https.sh",
+    "hackathon.md",
+    "static/index.html",
+    "static/whitepaper.html",
+    "tests/test_api.py",
+    "tests/test_features.py",
+    "tests/test_models.py",
+    "tests/test_orchestrator.py",
+    "tests/test_p0_accuracy.py",
+    "tests/test_prober.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6908,
+    "cache_creation_tokens": 1432618,
+    "cache_read_tokens": 131615404,
+    "output_tokens": 542197,
+    "api_call_count": 302,
+    "subagent_tokens": {
+      "input_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "output_tokens": 0,
+      "api_call_count": 0
+    }
+  }
+}
